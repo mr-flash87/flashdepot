@@ -30,8 +30,18 @@ function h($s): string
 
 function base_path(): string
 {
-    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
-    return rtrim(dirname($script), '/');
+    static $base = null;
+    if ($base !== null) {
+        return $base;
+    }
+    $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php')), '/');
+    // Site servi depuis un dossier parent par réécriture (ex. repo déployé dans public_html, site dans server/) :
+    // l'adresse visitée ne contient pas « /server », on remonte jusqu'au préfixe réellement utilisé.
+    $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    while ($dir !== '' && $dir !== '.' && !str_starts_with($uri . '/', $dir . '/')) {
+        $dir = rtrim(str_replace('\\', '/', dirname($dir)), '/');
+    }
+    return $base = ($dir === '.' ? '' : $dir);
 }
 
 function url(string $path = ''): string

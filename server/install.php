@@ -84,7 +84,12 @@ if (!$done && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     }
 }
-$guessUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
+$guessDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
+$guessUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+while ($guessDir !== '' && $guessDir !== '.' && !str_starts_with($guessUri . '/', $guessDir . '/')) {
+    $guessDir = rtrim(dirname($guessDir), '/'); // site servi depuis server/ par réécriture
+}
+$guessUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '') . ($guessDir === '.' ? '' : $guessDir);
 ?><!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Installation · FlashDépôt</title><meta name="robots" content="noindex">

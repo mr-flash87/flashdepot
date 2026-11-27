@@ -24,9 +24,10 @@ Agent ──demande──▶ Site FlashDépôt ──notification──▶ Distr
 Prérequis : PHP 8.0+, MySQL, HTTPS (certificat SSL gratuit Hostinger).
 
 1. hPanel → **Bases de données MySQL** : créez une base et un utilisateur (notez le nom, l'utilisateur et le mot de passe).
-2. Envoyez le **contenu** du dossier `server/` dans le dossier du site (ex. sous-domaine `depot.mondomaine.com`).
-   Automatique : ajoutez les secrets `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_DIR` dans GitHub (Settings → Secrets and variables → Actions).
-   Ensuite, chaque modification de `server/` sur `main` est mise en ligne toute seule (workflow « Mise en ligne du site »).
+2. hPanel → site → **Avancé → Git** : dépôt `https://github.com/mr-flash87/flashdepot.git`, branche `main`, dossier vide (= `public_html`).
+   Tout le repo est copié dans `public_html` : le `.htaccess` de la racine sert le site depuis `server/` et bloque le reste (`.git`, `android`…).
+   Activez le **déploiement automatique** (webhook à coller dans GitHub → Settings → Webhooks) : chaque modification de `main` est mise en ligne toute seule.
+   (Autre possibilité : FTP avec le workflow « Mise en ligne du site », à lancer à la main, secrets `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_DIR`.)
 3. Ouvrez `https://votre-site/install.php`, remplissez les accès MySQL et créez le compte du distributeur.
 4. Supprimez `install.php` après l'installation (il se bloque de lui-même, mais autant le retirer).
 
