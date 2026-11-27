@@ -1,1 +1,1 @@
-Première version de FlashDépôt : lecture des SMS Orange Money (dépôts envoyés et remboursements reçus).
+Nouveau design aux couleurs du site FlashDépôt (orange), nouvelle icône.

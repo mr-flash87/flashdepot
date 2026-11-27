@@ -35,13 +35,6 @@
     <?php endif; ?>
     <button class="btn primary big">Se connecter</button>
   </form>
-  <p class="center small">
-    <?php if ($isAdmin): ?>
-      <a href="<?= h(url('agent/login')) ?>">Espace agent</a>
-    <?php else: ?>
-      <a href="<?= h(url('admin/login')) ?>" class="muted">Espace distributeur</a>
-    <?php endif; ?>
-  </p>
 </div>
 </body>
 </html>
