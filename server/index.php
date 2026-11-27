@@ -34,9 +34,10 @@ try {
                 'start_url' => url($area),
                 'scope' => url(''),
                 'display' => 'standalone',
+                'description' => 'Dépôts Orange Money entre le distributeur et ses agents.',
                 'orientation' => 'portrait',
-                'background_color' => '#f4f6fb',
-                'theme_color' => '#ff7900',
+                'background_color' => '#f5f6f8',
+                'theme_color' => '#f5f6f8',
                 'lang' => 'fr',
                 'icons' => [
                     ['src' => url('assets/icon-192.png'), 'sizes' => '192x192', 'type' => 'image/png'],

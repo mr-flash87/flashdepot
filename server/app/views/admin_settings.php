@@ -1,11 +1,10 @@
 <?php /** @var array $user */ ?>
-<div class="page-head"><h1>Plus</h1></div>
+<div class="page-head"><h1>Réglages</h1></div>
 
 <div class="menu">
-  <a href="<?= h(url('admin/device')) ?>"><?= icon('phone', 22) ?><span><b>Téléphone</b><small>Associer le téléphone qui lit les SMS, solde Orange Money</small></span></a>
-  <a href="<?= h(url('admin/sms')) ?>"><?= icon('sms', 22) ?><span><b>SMS reçus</b><small>Tous les SMS Orange Money transmis, tester la lecture</small></span></a>
-  <a href="<?= h(url('agent/login')) ?>" target="_blank"><?= icon('users', 22) ?><span><b>Page des agents</b><small><?= h(abs_url('agent')) ?></small></span></a>
-  <a href="<?= h(url('admin/logout')) ?>"><?= icon('logout', 22) ?><span><b>Déconnexion</b><small><?= h($user['email']) ?></small></span></a>
+  <a href="<?= h(url('admin/device')) ?>"><?= icon('phone', 22) ?><span><b>Téléphone</b><small>Associer le téléphone qui lit les SMS, solde Orange Money</small></span><?= icon('chevron') ?></a>
+  <a href="<?= h(url('admin/sms')) ?>"><?= icon('sms', 22) ?><span><b>SMS reçus</b><small>Tous les SMS Orange Money transmis, tester la lecture</small></span><?= icon('chevron') ?></a>
+  <a href="<?= h(url('agent/login')) ?>" target="_blank"><?= icon('users', 22) ?><span><b>Page des agents</b><small><?= h(abs_url('agent')) ?></small></span><?= icon('chevron') ?></a>
 </div>
 
 <form method="post" class="card form">

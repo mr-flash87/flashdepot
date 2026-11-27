@@ -57,13 +57,31 @@ function agent_route(string $method, array $p): void
 
     switch ($a) {
         case '':
-            agent_page($agent);
+            agent_page($agent, 'agent_home', 'Accueil');
+            return;
+
+        case 'demande':
+            agent_page($agent, 'agent_request', 'Demander un dépôt');
+            return;
+
+        case 'releve':
+            agent_page($agent, 'agent_statement', 'Mon relevé');
+            return;
+
+        case 'compte':
+            agent_page($agent, 'agent_account', 'Code PIN');
             return;
 
         case 'logout':
             start_session();
             unset($_SESSION['agent_id']);
             redirect('agent/login');
+
+        case 'push':
+            if ($method !== 'POST') {
+                redirect('agent');
+            }
+            push_handle((int)$agent['id'], null);
 
         case 'poll':
             json_out([
@@ -84,8 +102,10 @@ function agent_route(string $method, array $p): void
                 $open = (int)q_val("SELECT COUNT(*) FROM deposit_requests WHERE agent_id = ? AND status = 'pending'", [$agent['id']]);
                 if (!$amount || $amount < $min) {
                     flash('Montant invalide (minimum ' . fmt_amount($min) . ').', 'err');
+                    redirect('agent/demande');
                 } elseif ($open >= 3) {
                     flash('Vous avez déjà 3 demandes en attente. Attendez la réponse du distributeur.', 'err');
+                    redirect('agent/demande');
                 } else {
                     request_create((int)$agent['id'], $amount, trim((string)($_POST['note'] ?? '')));
                     flash('Demande de ' . fmt_amount($amount) . ' envoyée au distributeur ✅');
@@ -104,25 +124,26 @@ function agent_route(string $method, array $p): void
                 } else {
                     db_update('agents', ['pin_hash' => password_hash($new, PASSWORD_DEFAULT)], 'id = :id', ['id' => $agent['id']]);
                     flash('Code PIN changé.');
+                    redirect('agent');
                 }
             }
-            redirect('agent');
+            redirect('agent/compte');
     }
     http_response_code(404);
     redirect('agent');
 }
 
-function agent_page(array $agent): void
+function agent_page(array $agent, string $view, string $title): void
 {
     $vars = [
-        'title' => 'Mon espace',
+        'title' => $title,
         'area' => 'agent',
         'agent' => $agent,
         'due' => agent_balance((int)$agent['id']),
         'requests' => q_all('SELECT * FROM deposit_requests WHERE agent_id = ? ORDER BY created_at DESC LIMIT 15', [$agent['id']]),
-        'ops' => array_values(array_filter(agent_statement((int)$agent['id'], 60), fn($o) => $o['status'] === 'ok')),
+        'ops' => array_values(array_filter(agent_statement((int)$agent['id'], 200), fn($o) => $o['status'] === 'ok')),
     ];
     view('layout_top', $vars);
-    view('agent_home', $vars);
+    view($view, $vars);
     view('layout_bottom', $vars);
 }

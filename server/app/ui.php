@@ -15,8 +15,9 @@ function due_text(float $due): string
 }
 
 /** Ligne d'opération (journal, relevé, tableau de bord). */
-function op_row(array $o, bool $showAgent = true, bool $showBalance = false): string
+function op_row(array $o, bool $showAgent = true, bool $showBalance = false, bool $forAgent = false): string
 {
+    $label = $forAgent ? (['depot' => 'Dépôt reçu', 'remb_om' => 'Remboursement Orange Money', 'remb_cash' => 'Remboursement cash'][$o['kind']] ?? op_label($o['kind'])) : op_label($o['kind']);
     $sign = op_sign($o['kind']);
     $counted = $o['status'] === 'ok';
     $ic = $o['kind'] === 'depot' || $o['kind'] === 'ajust_plus' ? 'up' : ($o['kind'] === 'remb_cash' ? 'cash' : 'down');
@@ -42,7 +43,7 @@ function op_row(array $o, bool $showAgent = true, bool $showBalance = false): st
     }
     $html = '<div class="op' . ($counted ? '' : ' op-off') . '">'
         . '<div class="op-ic ' . $tone . '">' . icon($ic, 18) . '</div>'
-        . '<div class="op-main"><div class="op-title">' . h(op_label($o['kind']))
+        . '<div class="op-main"><div class="op-title">' . h($label)
         . ($o['status'] !== 'ok' ? ' ' . badge($o['status'], op_status_label($o['status'])) : '') . '</div>'
         . ($who !== '' ? '<div class="op-who">' . $who . '</div>' : '')
         . '<div class="op-meta">' . implode(' · ', $meta) . '</div></div>'

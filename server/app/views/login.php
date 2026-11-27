@@ -4,16 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#ff7900">
+<meta name="theme-color" content="#f5f6f8">
 <title>Connexion · <?= h(app_name()) ?></title>
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
 <link rel="manifest" href="<?= h(url('manifest.webmanifest?area=' . ($isAdmin ? 'admin' : 'agent'))) ?>">
+<script>try{var t=localStorage.getItem('fd-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">
 </head>
 <body class="login-page">
 <div class="login-box">
   <div class="login-head">
-    <span class="logo big"><?= icon('wallet', 28) ?></span>
+    <span class="mark"><?= icon('logo', 30) ?></span>
     <h1><?= h(app_name()) ?></h1>
     <p><?= $isAdmin ? 'Espace distributeur' : 'Espace agent : demandez vos dépôts et suivez votre compte' ?></p>
   </div>

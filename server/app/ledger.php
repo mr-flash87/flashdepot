@@ -191,7 +191,7 @@ function ledger_from_sms(array $sms, bool $balanceOk): array
     if ($status === 'ok' && $kind === 'depot') {
         request_link_deposit($opId);
     }
-    tg_notify_op($opId);
+    notify_op($opId, true);
     return ['id' => $opId, 'status' => $status];
 }
 
@@ -244,8 +244,10 @@ function op_assign(int $opId, int $agentId, bool $rememberPhone): ?string
         foreach (q_all("SELECT id FROM operations WHERE status = 'unassigned' AND phone = ? AND id <> ?", [$op['phone'], $opId]) as $o) {
             db_update('operations', ['agent_id' => $agentId, 'status' => 'ok'], 'id = :id', ['id' => $o['id']]);
             request_link_deposit((int)$o['id']);
+            notify_op((int)$o['id'], false);
         }
     }
+    notify_op($opId, false);
     return null;
 }
 
@@ -289,7 +291,7 @@ function request_create(int $agentId, float $amount, string $note): int
         'status' => 'pending',
         'created_at' => now(),
     ]);
-    tg_notify_request($id);
+    notify_new_request($id);
     return $id;
 }
 

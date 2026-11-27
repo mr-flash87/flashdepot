@@ -75,6 +75,12 @@ function admin_route(string $method, array $p): void
             unset($_SESSION['uid']);
             redirect('admin/login');
 
+        case 'push':
+            if ($method !== 'POST') {
+                redirect('admin');
+            }
+            push_handle(null, (int)$user['id']);
+
         case 'poll':
             $s = dashboard_stats();
             json_out([
@@ -134,6 +140,7 @@ function admin_requests(string $method, array $p): void
             case 'approve':
                 if ($r['status'] === 'pending') {
                     db_update('deposit_requests', ['status' => 'approved', 'decided_at' => now()], 'id = :id', ['id' => $r['id']]);
+                    notify_request_status((int)$r['id']);
                     flash('Demande validée. Faites le transfert : il sera détecté automatiquement par SMS.');
                 }
                 break;
@@ -143,20 +150,23 @@ function admin_requests(string $method, array $p): void
                         'status' => 'rejected', 'decided_at' => now(),
                         'reject_reason' => mb_substr(trim((string)($_POST['reason'] ?? '')), 0, 255) ?: null,
                     ], 'id = :id', ['id' => $r['id']]);
+                    notify_request_status((int)$r['id']);
                     flash('Demande refusée.');
                 }
                 break;
             case 'sent':
                 // Le SMS n'est pas arrivé (ou envoi fait autrement) : on enregistre le dépôt à la main.
                 if (in_array($r['status'], ['pending', 'approved'], true)) {
-                    db_tx(function () use ($r) {
+                    $opId = db_tx(function () use ($r) {
                         $opId = op_create([
                             'agent_id' => $r['agent_id'], 'kind' => 'depot', 'amount' => $r['amount'],
                             'note' => 'Saisi à la main depuis la demande ' . $r['reference'], 'created_by' => 'admin',
                         ]);
                         db_update('operations', ['request_id' => $r['id']], 'id = :id', ['id' => $opId]);
                         db_update('deposit_requests', ['status' => 'sent', 'operation_id' => $opId, 'sent_at' => now(), 'decided_at' => $r['decided_at'] ?? now()], 'id = :id', ['id' => $r['id']]);
+                        return $opId;
                     });
+                    notify_op($opId, false);
                     flash('Dépôt enregistré. Si le SMS arrive ensuite, il ne sera pas compté deux fois.');
                 }
                 break;
@@ -295,7 +305,8 @@ function admin_agents(string $method, array $p): void
                 if (!$amount || $amount <= 0) {
                     flash('Montant invalide.', 'err');
                 } else {
-                    op_create(['agent_id' => $agent['id'], 'kind' => $kinds[$act], 'amount' => $amount, 'note' => $note ?: null, 'created_by' => 'admin']);
+                    $opId = op_create(['agent_id' => $agent['id'], 'kind' => $kinds[$act], 'amount' => $amount, 'note' => $note ?: null, 'created_by' => 'admin']);
+                    notify_op($opId, false);
                     flash(op_label($kinds[$act]) . ' de ' . fmt_amount($amount) . ' enregistré. Reste à payer : ' . fmt_amount(agent_balance((int)$agent['id'])) . '.');
                 }
             } elseif ($act === 'toggle') {
@@ -339,6 +350,7 @@ function admin_operations(string $method, array $p): void
                 break;
             case 'confirm': // SMS « à vérifier » reconnu comme vrai
                 db_tx(fn() => op_set_status((int)$op['id'], $op['agent_id'] ? 'ok' : 'unassigned'));
+                notify_op((int)$op['id'], false);
                 flash($op['agent_id'] ? 'Opération validée.' : 'Opération confirmée : attribuez-la maintenant à un agent.');
                 break;
             case 'reject':

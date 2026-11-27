@@ -208,6 +208,18 @@ function db_schema(string $driver): array
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE INDEX idx_sms_txn ON sms_messages (txn_id)";
+    $t[] = "CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id $pk,
+        user_id $fk NULL,
+        agent_id $fk NULL,
+        endpoint VARCHAR(500) NOT NULL,
+        endpoint_hash CHAR(64) NOT NULL UNIQUE,
+        p256dh VARCHAR(255) NOT NULL,
+        auth VARCHAR(100) NOT NULL,
+        user_agent VARCHAR(255) NULL,
+        created_at $dt NOT NULL
+    )$engine";
+    $t[] = "CREATE INDEX idx_push_agent ON push_subscriptions (agent_id)";
     $t[] = "CREATE TABLE IF NOT EXISTS login_attempts (
         id $pk,
         ip VARCHAR(64) NOT NULL,
@@ -232,7 +244,7 @@ function db_install_schema(PDO $pdo, string $driver): void
 }
 
 /** Version du schéma : les changements faits après l'installation sont appliqués automatiquement. */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2; // 2 : notifications push
 
 function db_add_column(string $table, string $column, string $mysqlType, string $sqliteType): void
 {

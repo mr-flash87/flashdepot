@@ -49,72 +49,32 @@ function tg_send(string $text, ?string $chatId = null, ?string $token = null): ?
     return null;
 }
 
-function tg_safe(callable $fn): void
+function tg_notify_request(array $r, float $due): void
 {
     if (!tg_enabled()) {
         return;
     }
-    // Pendant une transaction, on envoie après la réponse (ne bloque pas la base ni le téléphone).
-    if (db()->inTransaction()) {
-        static $registered = false;
-        $GLOBALS['tg_after'][] = $fn;
-        if (!$registered) {
-            $registered = true;
-            register_shutdown_function(function () {
-                if (function_exists('fastcgi_finish_request')) {
-                    @fastcgi_finish_request();
-                }
-                foreach ($GLOBALS['tg_after'] ?? [] as $f) {
-                    try {
-                        $f();
-                    } catch (Throwable $e) {
-                        log_line('telegram: ' . $e->getMessage());
-                    }
-                }
-            });
-        }
+    tg_send("📥 <b>Demande de dépôt</b>\n" . h($r['agent_name']) . ' demande <b>' . h(fmt_amount($r['amount'])) . "</b>\n"
+        . 'Dette actuelle : ' . h(fmt_amount($due))
+        . ($r['note'] ? "\nNote : " . h($r['note']) : '')
+        . "\n\n" . abs_url('admin/requests'));
+}
+
+function tg_notify_op(array $o, float $due): void
+{
+    if (!tg_enabled()) {
         return;
     }
-    try {
-        $fn();
-    } catch (Throwable $e) {
-        log_line('telegram: ' . $e->getMessage());
+    $who = $o['agent_name'] ? h($o['agent_name']) : (fmt_phone($o['phone']) . ($o['counterpart'] ? ' (' . h($o['counterpart']) . ')' : ''));
+    $amount = '<b>' . h(fmt_amount($o['amount'])) . '</b>';
+    if ($o['status'] === 'review') {
+        $text = "⚠️ <b>SMS à vérifier</b> (solde incohérent)\n" . h(op_label($o['kind'])) . " $amount — $who";
+    } elseif ($o['status'] === 'unassigned') {
+        $text = '❓ <b>Numéro inconnu</b>' . "\n" . ($o['kind'] === 'depot' ? 'Dépôt envoyé' : 'Argent reçu') . " $amount — $who\nÀ attribuer à un agent.";
+    } elseif ($o['kind'] === 'depot') {
+        $text = "📤 <b>Dépôt envoyé</b> $amount à $who\nNouvelle dette : " . h(fmt_amount($due));
+    } else {
+        $text = "✅ <b>Remboursement reçu</b> $amount de $who\nReste à payer : " . h(fmt_amount($due));
     }
-}
-
-function tg_notify_request(int $reqId): void
-{
-    tg_safe(function () use ($reqId) {
-        $r = request_find($reqId);
-        if (!$r) {
-            return;
-        }
-        $due = agent_balance((int)$r['agent_id']);
-        tg_send("📥 <b>Demande de dépôt</b>\n" . h($r['agent_name']) . ' demande <b>' . h(fmt_amount($r['amount'])) . "</b>\n"
-            . 'Dette actuelle : ' . h(fmt_amount($due))
-            . ($r['note'] ? "\nNote : " . h($r['note']) : '')
-            . "\n\n" . abs_url('admin/requests'));
-    });
-}
-
-function tg_notify_op(int $opId): void
-{
-    tg_safe(function () use ($opId) {
-        $o = op_find($opId);
-        if (!$o) {
-            return;
-        }
-        $who = $o['agent_name'] ? h($o['agent_name']) : (fmt_phone($o['phone']) . ($o['counterpart'] ? ' (' . h($o['counterpart']) . ')' : ''));
-        $amount = '<b>' . h(fmt_amount($o['amount'])) . '</b>';
-        if ($o['status'] === 'review') {
-            $text = "⚠️ <b>SMS à vérifier</b> (solde incohérent)\n" . h(op_label($o['kind'])) . " $amount — $who";
-        } elseif ($o['status'] === 'unassigned') {
-            $text = '❓ <b>Numéro inconnu</b>' . "\n" . ($o['kind'] === 'depot' ? 'Dépôt envoyé' : 'Argent reçu') . " $amount — $who\nÀ attribuer à un agent.";
-        } elseif ($o['kind'] === 'depot') {
-            $text = "📤 <b>Dépôt envoyé</b> $amount à $who\nNouvelle dette : " . h(fmt_amount(agent_balance((int)$o['agent_id'])));
-        } else {
-            $text = "✅ <b>Remboursement reçu</b> $amount de $who\nReste à payer : " . h(fmt_amount(agent_balance((int)$o['agent_id'])));
-        }
-        tg_send($text);
-    });
+    tg_send($text);
 }

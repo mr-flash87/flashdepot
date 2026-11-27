@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
 define('APP_DIR', __DIR__);
-define('APP_VERSION', '1.0.0');
+define('APP_VERSION', '1.1.0');
 
 $configFile = APP_ROOT . '/config.php';
 if (!is_file($configFile)) {
@@ -30,5 +30,7 @@ require APP_DIR . '/settings.php';
 require APP_DIR . '/sms.php';
 require APP_DIR . '/ledger.php';
 require APP_DIR . '/telegram.php';
+require APP_DIR . '/webpush.php';
+require APP_DIR . '/notify.php';
 
 db_migrate();

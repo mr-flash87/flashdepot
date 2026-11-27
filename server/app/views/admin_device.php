@@ -2,7 +2,7 @@
 $paired = $device && $device['token_hash'];
 $codeValid = $device && $device['pair_code'] && $device['pair_expires_at'] > now();
 ?>
-<div class="page-head"><div><a class="back" href="<?= h(url('admin/settings')) ?>">← Plus</a><h1>Téléphone du distributeur</h1></div></div>
+<div class="page-head"><div><a class="back" href="<?= h(url('admin')) ?>">← Accueil</a><h1>Téléphone du distributeur</h1></div></div>
 
 <section class="card">
   <?php if ($paired): ?>
