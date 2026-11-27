@@ -1,0 +1,1 @@
+Le fichier flashdepot.apk est déposé ici automatiquement par GitHub Actions (ou à la main) : il se télécharge sur /downloads/flashdepot.apk
