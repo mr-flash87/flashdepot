@@ -9,6 +9,11 @@ $configFile = APP_ROOT . '/config.php';
 if (!is_file($configFile)) {
     if (PHP_SAPI !== 'cli') {
         $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+        $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+        while ($base !== '' && $base !== '.' && !str_starts_with($uri . '/', $base . '/')) {
+            $base = rtrim(dirname($base), '/'); // site servi depuis server/ par réécriture
+        }
+        $base = $base === '.' ? '' : $base;
         header('Location: ' . $base . '/install.php');
         exit;
     }
