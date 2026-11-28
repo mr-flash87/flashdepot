@@ -49,6 +49,13 @@ function url(string $path = ''): string
     return base_path() . '/' . ltrim($path, '/');
 }
 
+/** Adresse d'un fichier statique avec sa date de modification : un fichier modifié n'est jamais repris du cache. */
+function asset_url(string $path): string
+{
+    $file = APP_ROOT . '/' . ltrim($path, '/');
+    return url($path) . '?v=' . (is_file($file) ? filemtime($file) : APP_VERSION);
+}
+
 function abs_url(string $path = ''): string
 {
     $configured = rtrim((string)cfg('app_url', ''), '/');

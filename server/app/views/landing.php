@@ -23,7 +23,7 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap">
-<link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">
+<link rel="stylesheet" href="<?= h(asset_url('assets/style.css')) ?>">
 </head>
 <body class="lp">
 

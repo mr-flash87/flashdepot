@@ -9,7 +9,7 @@
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
 <link rel="manifest" href="<?= h(url('manifest.webmanifest?area=admin')) ?>">
 <script>try{var t=localStorage.getItem('fd-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
-<link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">
+<link rel="stylesheet" href="<?= h(asset_url('assets/style.css')) ?>">
 </head>
 <body class="login-page">
 <div class="login-box">

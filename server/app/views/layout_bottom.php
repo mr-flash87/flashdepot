@@ -88,6 +88,6 @@ $hasApp = in_array($area, ['admin', 'agent', 'superadmin'], true);
 </div>
 <?php endif; ?>
 
-<script src="<?= h(url('assets/app.js?v=' . APP_VERSION)) ?>"></script>
+<script src="<?= h(asset_url('assets/app.js')) ?>"></script>
 </body>
 </html>

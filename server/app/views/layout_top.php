@@ -73,7 +73,7 @@ $pwa = [
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
 <link rel="apple-touch-icon" href="<?= h(url('assets/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= h(url('manifest.webmanifest?area=' . (in_array($area, ['admin', 'superadmin'], true) ? $area : 'agent'))) ?>">
-<link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">
+<link rel="stylesheet" href="<?= h(asset_url('assets/style.css')) ?>">
 <script>window.FD = <?= json_encode($pwa, JSON_UNESCAPED_SLASHES) ?>;</script>
 </head>
 <body class="area-<?= h($area) ?>" data-base="<?= h(base_path()) ?>">
