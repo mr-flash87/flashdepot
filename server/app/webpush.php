@@ -128,8 +128,8 @@ function webpush_send(array $sub, array $message): int
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_CONNECTTIMEOUT => 3,
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/octet-stream',
             'Content-Encoding: aes128gcm',

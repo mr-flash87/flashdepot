@@ -15,8 +15,16 @@ function after_response(callable $fn): void
     }
     $registered = true;
     register_shutdown_function(function () {
-        if (function_exists('fastcgi_finish_request')) {
-            @fastcgi_finish_request();
+        // 1) Libère la session : la page suivante n'attend pas la fin des envois.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        // 2) Termine la réponse au navigateur / au téléphone, puis envoie les notifications.
+        ignore_user_abort(true);
+        if (function_exists('litespeed_finish_request')) {
+            @litespeed_finish_request(); // Hostinger (LiteSpeed)
+        } elseif (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();   // PHP-FPM
         }
         foreach ($GLOBALS['__after'] ?? [] as $f) {
             try {

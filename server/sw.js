@@ -1,8 +1,7 @@
 /* Service worker FlashDépôt : rend le site installable et affiche les notifications (avec le son du téléphone). */
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
-// Pas de cache : les montants doivent toujours être à jour.
-self.addEventListener('fetch', () => {});
+// Pas de gestionnaire « fetch » : les pages vont directement au serveur (plus rapide, montants toujours à jour).
 
 self.addEventListener('push', (event) => {
   let d = {};

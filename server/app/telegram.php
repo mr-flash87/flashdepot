@@ -29,8 +29,8 @@ function tg_send(string $text, ?string $chatId = null, ?string $token = null): ?
             'disable_web_page_preview' => 'true',
         ]),
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 6,
-        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_CONNECTTIMEOUT => 3,
     ]);
     $res = curl_exec($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
