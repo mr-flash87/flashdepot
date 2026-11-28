@@ -32,6 +32,13 @@
     el.querySelector('[data-ann-close]').addEventListener('click', function () { el.remove(); store.set(key, '1'); });
   });
 
+  /* ---------------- Opérateurs d'un agent : numéro grisé si l'opérateur est décoché ---------------- */
+  $$('[data-op-toggle]').forEach(function (c) {
+    var box = c.closest('.opbox');
+    var sync = function () { box.classList.toggle('off', !c.checked); };
+    c.addEventListener('change', sync); sync();
+  });
+
   /* ---------------- Copier un numéro ---------------- */
   $$('[data-copy]').forEach(function (b) {
     b.addEventListener('click', function () {

@@ -8,7 +8,9 @@ $sumOk = fn(array $kinds) => array_sum(array_map(fn($o) => in_array($o['kind'], 
     <a class="back" href="<?= h(url('admin/agents')) ?>">← Agents</a>
     <h1><?= h($agent['name']) ?><?= (int)$agent['active'] === 1 ? '' : ' <span class="badge b-cancelled">désactivé</span>' ?></h1>
     <div class="muted small">
-      <?= implode(' · ', array_map(fn($k) => '<span class="mono">' . h(fmt_phone($k)) . '</span>', $phones)) ?>
+      <?php $mainsH = agent_main_phones($id); ?>
+      <?= implode(' · ', array_map(fn($op) => h(mm_operators()[$op]['short']) . ' <span class="mono">' . h(fmt_phone($mainsH[$op])) . '</span>', array_keys($mainsH))) ?>
+      <?php $others = array_diff($phones, array_values($mainsH)); if ($others): ?> · autres : <?= implode(', ', array_map(fn($k) => '<span class="mono">' . h(fmt_phone($k)) . '</span>', $others)) ?><?php endif; ?>
       <?= $agent['location'] ? ' · ' . h($agent['location']) : '' ?>
     </div>
   </div>

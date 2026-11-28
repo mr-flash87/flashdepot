@@ -1,6 +1,6 @@
 <?php /** @var array $agent @var float $due */
 $nums = [];
-foreach (dist_operators() as $op) {
+foreach (array_intersect(agent_operators((int)$agent['id']), dist_operators()) as $op) {
     $n = (string)dsetting('receive_' . $op);
     if ($n === '' && $op === 'orange' && distributor()['phone'] && phone_operator(distributor()['phone']) !== 'moov') {
         $n = (string)distributor()['phone'];
@@ -9,7 +9,7 @@ foreach (dist_operators() as $op) {
         $nums[$op] = $n;
     }
 }
-$mine = agent_phones((int)$agent['id']);
+$mine = array_values(agent_main_phones((int)$agent['id']));
 ?>
 <div class="page-head"><div><a class="back" href="<?= h(url('agent')) ?>">← Accueil</a><h1>Rembourser</h1></div></div>
 

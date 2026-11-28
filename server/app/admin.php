@@ -240,15 +240,39 @@ function admin_requests(string $method, array $p): void
 function admin_agent_form_save(?array $agent): array
 {
     $name = trim((string)($_POST['name'] ?? ''));
-    $login = phone_key((string)($_POST['login_phone'] ?? ''));
     $pin = preg_replace('/\D+/', '', (string)($_POST['pin'] ?? ''));
     $errors = [];
     if ($name === '') {
         $errors[] = 'Le nom est obligatoire.';
     }
-    if ($login === null) {
-        $errors[] = 'Le numéro de connexion doit avoir 8 chiffres.';
-    } else {
+    // Opérateurs utilisés par l'agent, choisis par le distributeur, avec un numéro pour chacun.
+    $mains = [];
+    $chosen = count(dist_operators()) > 1 ? (array)($_POST['ops'] ?? []) : dist_operators();
+    foreach (dist_operators() as $op) {
+        if (!in_array($op, $chosen, true)) {
+            continue;
+        }
+        $k = phone_key((string)($_POST['phone_' . $op] ?? ''));
+        if ($k === null) {
+            $errors[] = 'Numéro ' . mm_name($op) . ' de l\'agent manquant ou invalide (8 chiffres).';
+        } else {
+            $mains[$op] = $k;
+        }
+    }
+    // Numéros d'un opérateur que le distributeur a désactivé : conservés tels quels.
+    if ($agent) {
+        foreach (agent_main_phones((int)$agent['id']) as $op => $k) {
+            if (!in_array($op, dist_operators(), true)) {
+                $mains[$op] = $k;
+            }
+        }
+    }
+    if (!$mains && !$errors) {
+        $errors[] = 'Cochez au moins un opérateur (Orange Money ou Moov Money).';
+    }
+    // L'agent se connecte avec son numéro Orange, ou Moov s'il n'a que Moov.
+    $login = $mains['orange'] ?? (reset($mains) ?: null);
+    if ($login !== null) {
         $other = q_one('SELECT id, name FROM agents WHERE login_phone = ? AND distributor_id = ?', [$login, did()]);
         if ($other && (!$agent || (int)$other['id'] !== (int)$agent['id'])) {
             $errors[] = 'Ce numéro de connexion est déjà utilisé par ' . $other['name'] . '.';
@@ -261,7 +285,7 @@ function admin_agent_form_save(?array $agent): array
         $errors[] = 'Le code PIN doit avoir au moins 4 chiffres.';
     }
     $extra = array_filter(array_map('trim', preg_split('/[\n,;]+/', (string)($_POST['phones'] ?? ''))));
-    foreach ($extra as $ph) {
+    foreach (array_merge(array_values($mains), $extra) as $ph) {
         $k = phone_key($ph);
         if ($k === null) {
             $errors[] = 'Numéro invalide : ' . $ph;
@@ -284,7 +308,7 @@ function admin_agent_form_save(?array $agent): array
     if ($pin !== '') {
         $data['pin_hash'] = password_hash($pin, PASSWORD_DEFAULT);
     }
-    $id = db_tx(function () use ($agent, $data, $login, $extra) {
+    $id = db_tx(function () use ($agent, $data, $mains, $extra) {
         if ($agent) {
             db_update('agents', $data, 'id = :id AND distributor_id = :d', ['id' => $agent['id'], 'd' => did()]);
             $id = (int)$agent['id'];
@@ -292,8 +316,9 @@ function admin_agent_form_save(?array $agent): array
         } else {
             $id = db_insert('agents', $data + ['distributor_id' => did(), 'active' => 1, 'created_at' => now()]);
         }
-        // Le numéro de connexion est aussi son numéro Orange Money principal.
-        agent_add_phone($id, $login);
+        foreach ($mains as $op => $k) {
+            agent_add_phone($id, $k, $op, true); // numéro principal de chaque opérateur
+        }
         foreach ($extra as $ph) {
             agent_add_phone($id, $ph);
         }

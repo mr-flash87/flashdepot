@@ -66,13 +66,33 @@ function agent_by_phone(?string $phone): ?array
     return q_one('SELECT a.* FROM agents a JOIN agent_phones p ON p.agent_id = a.id WHERE p.phone_key = ? AND p.distributor_id = ?', [$k, did()]);
 }
 
+/** Numéro principal de l'agent par opérateur : ['orange' => '64318090', 'moov' => '70445566']. */
+function agent_main_phones(int $agentId): array
+{
+    $out = [];
+    foreach (q_all('SELECT phone_key, operator, main FROM agent_phones WHERE agent_id = ? AND distributor_id = ? ORDER BY main DESC, id', [$agentId, did()]) as $r) {
+        if ((int)$r['main'] === 1 && !isset($out[$r['operator']])) {
+            $out[$r['operator']] = $r['phone_key'];
+        }
+    }
+    return $out;
+}
+
+/** Opérateurs utilisés par l'agent (choisis par le distributeur), dans l'ordre Orange, Moov. */
+function agent_operators(int $agentId): array
+{
+    $mine = agent_main_phones($agentId);
+    $ops = array_values(array_filter(array_keys(mm_operators()), fn($op) => isset($mine[$op])));
+    return $ops ?: ['orange'];
+}
+
 function agent_phones(int $agentId): array
 {
     return array_column(q_all('SELECT phone_key FROM agent_phones WHERE agent_id = ? AND distributor_id = ? ORDER BY id', [$agentId, did()]), 'phone_key');
 }
 
-/** Ajoute un numéro à un agent. Retourne un message d'erreur ou null. */
-function agent_add_phone(int $agentId, string $phone): ?string
+/** Ajoute un numéro à un agent (opérateur deviné au préfixe si non précisé). Retourne un message d'erreur ou null. */
+function agent_add_phone(int $agentId, string $phone, ?string $operator = null, bool $main = false): ?string
 {
     $k = phone_key($phone);
     if ($k === null) {
@@ -83,7 +103,11 @@ function agent_add_phone(int $agentId, string $phone): ?string
         return 'Le numéro ' . fmt_phone($k) . ' appartient déjà à ' . $owner['name'] . '.';
     }
     if (!$owner) {
-        db_insert('agent_phones', ['distributor_id' => did(), 'agent_id' => $agentId, 'phone_key' => $k, 'created_at' => now()]);
+        db_insert('agent_phones', [
+            'distributor_id' => did(), 'agent_id' => $agentId, 'phone_key' => $k,
+            'operator' => isset(mm_operators()[$operator ?? '']) ? $operator : (phone_operator($k) ?? 'orange'),
+            'main' => $main ? 1 : 0, 'created_at' => now(),
+        ]);
     }
     return null;
 }
@@ -232,7 +256,9 @@ function op_assign(int $opId, int $agentId, bool $rememberPhone): ?string
         return 'Cette opération est déjà attribuée.';
     }
     if ($rememberPhone && $op['phone']) {
-        $err = agent_add_phone($agentId, $op['phone']);
+        // Numéro retenu avec l'opérateur du SMS ; il devient le numéro principal de cet opérateur s'il n'y en avait pas.
+        $opr = $op['operator'] ?? 'orange';
+        $err = agent_add_phone($agentId, $op['phone'], $opr, !isset(agent_main_phones($agentId)[$opr]));
         if ($err) {
             return $err;
         }
@@ -303,17 +329,13 @@ function request_create(int $agentId, float $amount, string $note, ?string $oper
 /** Numéro où envoyer le dépôt : le premier numéro Orange Money de l'agent. */
 function request_target_phone(array $req): string
 {
-    $phones = agent_phones((int)$req['agent_id']);
-    // Dépôt Moov : de préférence le numéro Moov de l'agent (reconnu à son préfixe).
+    // Numéro principal de l'agent pour l'opérateur demandé (Orange ou Moov).
+    $main = agent_main_phones((int)$req['agent_id']);
     $op = $req['operator'] ?? null;
-    if ($op) {
-        foreach ($phones as $k) {
-            if (phone_operator($k) === $op) {
-                return $k;
-            }
-        }
+    if ($op && isset($main[$op])) {
+        return $main[$op];
     }
-    return $phones[0] ?? (string)$req['login_phone'];
+    return reset($main) ?: ((agent_phones((int)$req['agent_id'])[0] ?? null) ?: (string)$req['login_phone']);
 }
 
 /** Opérateurs activés par le distributeur (Orange Money par défaut). */

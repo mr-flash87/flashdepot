@@ -155,6 +155,8 @@ function db_schema(string $driver): array
         distributor_id $fk NOT NULL,
         agent_id $fk NOT NULL,
         phone_key VARCHAR(12) NOT NULL,
+        operator VARCHAR(20) NOT NULL DEFAULT 'orange',
+        main SMALLINT NOT NULL DEFAULT 0,
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE UNIQUE INDEX uq_aphone ON agent_phones (distributor_id, phone_key)";
@@ -300,7 +302,7 @@ function db_install_schema(PDO $pdo, string $driver): void
 }
 
 /** Version du schéma : les changements faits après l'installation sont appliqués automatiquement. */
-const SCHEMA_VERSION = 4; // 2 : notifications push ; 3 : plusieurs distributeurs ; 4 : Moov Money, annonces
+const SCHEMA_VERSION = 5; // 2 : notifications push ; 3 : plusieurs distributeurs ; 4 : Moov Money, annonces ; 5 : opérateurs par agent
 
 function db_add_column(string $table, string $column, string $mysqlType, string $sqliteType): void
 {
@@ -388,6 +390,16 @@ function db_migrate(): void
         q("UPDATE sms_messages SET operator = 'orange' WHERE operator IS NULL AND kind IS NOT NULL");
         foreach (q_all('SELECT id, last_balance FROM devices WHERE last_balance IS NOT NULL AND balances IS NULL') as $d) {
             db_update('devices', ['balances' => json_encode(['orange' => (float)$d['last_balance']])], 'id = :id', ['id' => $d['id']]);
+        }
+    }
+    if ($v >= 1 && $v < 5) {
+        // Opérateurs par agent : chaque numéro a son opérateur ; le numéro de connexion devient
+        // le numéro principal de son opérateur (jusqu'ici tous les agents étaient en Orange Money).
+        db_add_column('agent_phones', 'operator', "VARCHAR(20) NOT NULL DEFAULT 'orange'", "TEXT NOT NULL DEFAULT 'orange'");
+        db_add_column('agent_phones', 'main', 'SMALLINT NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0');
+        foreach (q_all('SELECT p.id, p.phone_key, a.login_phone FROM agent_phones p JOIN agents a ON a.id = p.agent_id') as $ph) {
+            $op = function_exists('phone_operator') ? (phone_operator($ph['phone_key']) ?? 'orange') : 'orange';
+            db_update('agent_phones', ['operator' => $op, 'main' => $ph['phone_key'] === $ph['login_phone'] ? 1 : 0], 'id = :id', ['id' => $ph['id']]);
         }
     }
     setting_set('schema_version', (string)SCHEMA_VERSION);

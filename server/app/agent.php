@@ -131,7 +131,8 @@ function agent_route(string $method, array $p): void
                     redirect('agent/demande');
                 } else {
                     $opr = (string)($_POST['operator'] ?? '');
-                    $opr = in_array($opr, dist_operators(), true) ? $opr : (count(dist_operators()) === 1 ? dist_operators()[0] : null);
+                    $mine = agent_operators((int)$agent['id']);
+                    $opr = in_array($opr, $mine, true) ? $opr : $mine[0];
                     request_create((int)$agent['id'], $amount, trim((string)($_POST['note'] ?? '')), $opr);
                     flash('Demande de ' . fmt_amount($amount) . ' envoyée au distributeur ✅');
                 }

@@ -659,3 +659,11 @@ code { background: var(--soft); padding: 1px 6px; border-radius: 6px; font-size:
 .alert.info { background: var(--blue-soft); color: var(--blue); }
 .alert.ann { align-items: flex-start; justify-content: space-between; flex-wrap: nowrap; }
 .alert.ann .x { width: 30px; height: 30px; color: inherit; flex: none; }
+
+/* Opérateurs d'un agent (formulaire du distributeur) */
+.opgrid { display: grid; gap: 10px; }
+@media (min-width: 640px) { .opgrid { grid-template-columns: 1fr 1fr; } }
+.opbox { background: var(--soft); border-radius: 16px; padding: 12px; }
+.opbox label.check { margin: 0 0 8px; }
+.opbox input[type=tel] { margin: 0; }
+.opbox.off input[type=tel] { opacity: .45; }

@@ -1,6 +1,6 @@
 <?php /** @var array $agent @var float $due @var array $requests */
 $min = (float)dsetting('min_request', '1000');
-$ops = dist_operators();
+$ops = agent_operators((int)$agent['id']); // opérateurs choisis par le distributeur pour cet agent
 $open = array_values(array_filter($requests, fn($r) => in_array($r['status'], ['pending', 'approved'], true)));
 ?>
 <div class="page-head"><div><a class="back" href="<?= h(url('agent')) ?>">← Accueil</a><h1>Demander un dépôt</h1></div></div>
@@ -29,8 +29,8 @@ $open = array_values(array_filter($requests, fn($r) => in_array($r['status'], ['
 
 <div class="card ag-info">
   <div class="row-link"><span class="muted">Dette actuelle</span><b class="<?= $due > 0 ? 'neg' : 'pos' ?>"><?= h(fmt_amount(abs($due))) ?><?= $due < 0 ? ' d\'avance' : '' ?></b></div>
-  <?php foreach (agent_phones((int)$agent['id']) as $k): ?>
-    <div class="row-link"><span class="muted">Dépôt <?= h(mm_name(phone_operator($k) ?? 'orange')) ?> sur</span><b class="mono"><?= h(fmt_phone($k)) ?></b></div>
+  <?php foreach (agent_main_phones((int)$agent['id']) as $op => $k): ?>
+    <div class="row-link"><span class="muted">Dépôt <?= h(mm_name($op)) ?> sur</span><b class="mono"><?= h(fmt_phone($k)) ?></b></div>
   <?php endforeach; ?>
 </div>
 
