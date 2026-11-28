@@ -393,6 +393,13 @@ code { background: var(--soft); padding: 1px 6px; border-radius: 6px; font-size:
 .login-box .btn.big { margin-top: 16px; }
 
 /* ------------------------------------------------------------------ Page de présentation */
+@font-face {
+  font-family: "Urbanist";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap; /* le texte s'affiche tout de suite, la police arrive ensuite */
+  src: url("fonts/urbanist-latin.woff2") format("woff2");
+}
 .lp {
   --lp-page: #eceef2; --lp-panel: #f5f6f8; --lp-white: #ffffff; --lp-ink: #18181b;
   font-family: Urbanist, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -418,7 +425,7 @@ code { background: var(--soft); padding: 1px 6px; border-radius: 6px; font-size:
 .lp-links a:hover { opacity: 1; }
 .lp-nav-cta { margin-left: auto; display: flex; gap: 8px; }
 @media (min-width: 820px) { .lp-links { display: flex; } .lp-nav-cta { margin-left: 0; } }
-@media (max-width: 480px) { .lp-nav .lp-hide-xs { display: none; } .lp-nav { gap: 8px; padding-left: 12px; } .lp-brand { font-size: 17px; } }
+@media (max-width: 480px) { .lp-nav { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--lp-white); } .lp-nav .lp-hide-xs { display: none; } .lp-nav { gap: 8px; padding-left: 12px; } .lp-brand { font-size: 17px; } }
 
 /* Boutons */
 .lp-btn {
@@ -450,12 +457,11 @@ code { background: var(--soft); padding: 1px 6px; border-radius: 6px; font-size:
 .lp-hero { text-align: center; padding-top: 34px; overflow: hidden; }
 .lp-net { position: relative; max-width: 960px; height: 300px; margin: 0 auto 18px; }
 .lp-net-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
-.lp-net-lines path { fill: none; stroke: color-mix(in srgb, var(--muted) 35%, transparent); stroke-width: 1.5; stroke-dasharray: 5 6; vector-effect: non-scaling-stroke; animation: lp-flow 1.6s linear infinite; }
-@keyframes lp-flow { to { stroke-dashoffset: -22; } }
-.lp-node { position: absolute; transform: translate(-50%, -50%); animation: lp-float 5s ease-in-out infinite; }
+.lp-net-lines path { fill: none; stroke: color-mix(in srgb, var(--muted) 35%, transparent); stroke-width: 1.5; stroke-dasharray: 5 6; vector-effect: non-scaling-stroke; }
+.lp-node { position: absolute; transform: translate(-50%, -50%); animation: lp-float 5s ease-in-out infinite; will-change: translate; }
 .lp-node:nth-child(3) { animation-delay: -1s; } .lp-node:nth-child(4) { animation-delay: -2s; } .lp-node:nth-child(5) { animation-delay: -3s; }
 .lp-node:nth-child(6) { animation-delay: -1.5s; } .lp-node:nth-child(7) { animation-delay: -2.5s; } .lp-node:nth-child(8) { animation-delay: -.5s; }
-@keyframes lp-float { 0%, 100% { margin-top: 0; } 50% { margin-top: -8px; } }
+@keyframes lp-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
 .lp-center { left: 50%; top: 50%; animation: none; }
 .lp-logo-big {
   display: grid; place-items: center; width: 132px; height: 132px; border-radius: 34px; color: #fff;
@@ -581,5 +587,5 @@ code { background: var(--soft); padding: 1px 6px; border-radius: 6px; font-size:
 .lp-foot p { color: var(--muted); font-size: 13px; margin: 0; max-width: 560px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-node, .lp-net-lines path, .lp-notifs .n2 { animation: none; }
+  .lp-node, .lp-notifs .n2 { animation: none; }
 }

@@ -1,0 +1,3 @@
+Urbanist (police de la page de présentation)
+Copyright 2021 The Urbanist Project Authors (https://github.com/coreyhu/Urbanist)
+Distribuée sous licence SIL Open Font License 1.1 : https://openfontlicense.org

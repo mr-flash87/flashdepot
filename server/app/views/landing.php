@@ -20,9 +20,6 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
 <meta property="og:image" content="<?= h(abs_url('assets/icon-512.png')) ?>">
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
 <link rel="apple-touch-icon" href="<?= h(url('assets/apple-touch-icon.png')) ?>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap">
 <link rel="stylesheet" href="<?= h(asset_url('assets/style.css')) ?>">
 </head>
 <body class="lp">
