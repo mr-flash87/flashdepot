@@ -273,7 +273,7 @@ function sms_balance_ok(?array $device, array $p): bool
 function subscription_from_sms(array $sms, bool $balanceOk): string
 {
     $amount = (float)$sms['amount'];
-    $d = $sms['phone'] ? q_one('SELECT * FROM distributors WHERE phone = ?', [phone_key($sms['phone'])]) : null;
+    $d = $sms['phone'] ? dist_find_by_phone($sms['phone']) : null;
     $row = [
         'distributor_id' => $d['id'] ?? null,
         'amount' => $amount,

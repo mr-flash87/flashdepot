@@ -527,22 +527,35 @@ function admin_settings(string $method, array $user): void
     if ($method === 'POST') {
         if ($sub === 'general') {
             $name = mb_substr(trim((string)($_POST['dist_name'] ?? '')), 0, 120);
-            $phone = phone_key((string)($_POST['dist_phone'] ?? ''));
-            $taken = $phone ? q_one('SELECT id FROM distributors WHERE phone = ? AND id <> ?', [$phone, did()]) : null;
-            if ($taken) {
-                flash('Ce numéro est déjà utilisé par un autre compte distributeur.', 'err');
-                redirect('admin/settings');
+            // Numéros du distributeur par opérateur : ils activent l'opérateur (Moov s'active dès qu'un numéro Moov est rempli).
+            $nums = [];
+            foreach (array_keys(mm_operators()) as $op) {
+                $raw = trim((string)($_POST['num_' . $op] ?? ''));
+                $k = phone_key($raw);
+                if ($raw !== '' && $k === null) {
+                    flash('Numéro ' . mm_name($op) . ' invalide (8 chiffres).', 'err');
+                    redirect('admin/settings');
+                }
+                if ($k !== null) {
+                    $other = dist_find_by_phone($k);
+                    if ($other && (int)$other['id'] !== did()) {
+                        flash('Le numéro ' . fmt_phone($k) . ' est déjà utilisé par un autre compte distributeur.', 'err');
+                        redirect('admin/settings');
+                    }
+                    $nums[$op] = $k;
+                }
             }
+            $phone = $nums['orange'] ?? ($nums['moov'] ?? distributor()['phone']);
             db_update('distributors', ['name' => $name ?: distributor()['name'], 'phone' => $phone], 'id = :id', ['id' => did()]);
             $GLOBALS['__dist'] = null;
+            foreach (array_keys(mm_operators()) as $op) {
+                dsetting_set('receive_' . $op, $nums[$op] ?? '');
+            }
+            dsetting_set('operators', implode(',', array_keys($nums) ?: ['orange']));
             dsetting_set('deposit_ussd', mb_substr(trim((string)($_POST['deposit_ussd'] ?? '')), 0, 100));
             if (isset($_POST['deposit_ussd_moov'])) {
                 dsetting_set('deposit_ussd_moov', mb_substr(trim((string)$_POST['deposit_ussd_moov']), 0, 100));
             }
-            dsetting_set('receive_orange', phone_key((string)($_POST['receive_orange'] ?? '')) ?? '');
-            dsetting_set('receive_moov', phone_key((string)($_POST['receive_moov'] ?? '')) ?? '');
-            $ops = array_values(array_intersect((array)($_POST['operators'] ?? []), array_keys(mm_operators())));
-            dsetting_set('operators', implode(',', $ops ?: ['orange']));
             dsetting_set('balance_check', !empty($_POST['balance_check']) ? '1' : '0');
             dsetting_set('min_request', (string)(int)(input_amount($_POST['min_request'] ?? '') ?? 0));
             flash('Réglages enregistrés.');

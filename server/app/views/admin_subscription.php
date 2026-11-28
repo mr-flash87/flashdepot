@@ -26,11 +26,11 @@ $support = trim((string)setting('support_whatsapp'));
   <h2>Payer ou renouveler</h2>
   <?php if ($pay !== ''): ?>
     <ol class="steps">
-      <li>Depuis votre numéro <b class="mono"><?= $d['phone'] ? h(fmt_phone($d['phone'])) : '— (à renseigner dans Réglages)' ?></b>, envoyez le montant de la formule choisie par <b>Orange Money</b> au <b class="mono"><?= h(fmt_phone($pay)) ?></b><?php if ($payMoov !== ''): ?> ou par <b>Moov Money</b> au <b class="mono"><?= h(fmt_phone($payMoov)) ?></b><?php endif; ?>.</li>
+      <li>Depuis l'un de vos numéros <b class="mono"><?= dist_numbers() ? h(implode(' ou ', array_map('fmt_phone', dist_numbers()))) : '— (à renseigner dans Réglages)' ?></b>, envoyez le montant de la formule choisie par <b>Orange Money</b> au <b class="mono"><?= h(fmt_phone($pay)) ?></b><?php if ($payMoov !== ''): ?> ou par <b>Moov Money</b> au <b class="mono"><?= h(fmt_phone($payMoov)) ?></b><?php endif; ?>.</li>
       <li>Votre abonnement est prolongé <b>automatiquement</b> dès réception (quelques minutes).</li>
       <li>Pour plusieurs mois, envoyez le montant multiplié (ex. 3 mois Pro = <?= h(fmt_amount(plans()['pro']['price'] * 3)) ?>).</li>
     </ol>
-    <?php if (!$d['phone']): ?><div class="alert warn" style="margin-top:12px">Renseignez d'abord votre numéro Orange Money dans <a href="<?= h(url('admin/settings')) ?>">Réglages</a>, sinon le paiement ne pourra pas être reconnu.</div><?php endif; ?>
+    <?php if (!dist_numbers()): ?><div class="alert warn" style="margin-top:12px">Renseignez d'abord vos numéros dans <a href="<?= h(url('admin/settings')) ?>">Réglages</a>, sinon le paiement ne pourra pas être reconnu.</div><?php endif; ?>
   <?php else: ?>
     <p>Contactez le support FlashDépôt<?= $support !== '' ? ' sur WhatsApp au <b>' . h($support) . '</b>' : '' ?> pour payer votre abonnement.</p>
   <?php endif; ?>
