@@ -13,7 +13,7 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title><?= h(app_name()) ?> · Les dépôts Orange Money de vos agents, suivis tout seuls</title>
-<meta name="description" content="Logiciel pour distributeurs Orange Money : vos agents demandent leurs dépôts en ligne, chaque transfert et remboursement est enregistré automatiquement grâce aux SMS. Essai gratuit <?= $trial ?> jours.">
+<meta name="description" content="Logiciel pour distributeurs Orange Money et Moov Money : vos agents demandent leurs dépôts en ligne, chaque transfert et remboursement est enregistré automatiquement grâce aux SMS. Essai gratuit <?= $trial ?> jours.">
 <meta name="theme-color" content="#eceef2">
 <meta property="og:title" content="<?= h(app_name()) ?> · Dépôts Orange Money suivis automatiquement">
 <meta property="og:description" content="Demandes en ligne, SMS lus automatiquement, dette de chaque agent à jour en temps réel.">
@@ -68,7 +68,7 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
   </div>
 
   <h1 class="lp-h1">Les dépôts de vos agents,<br>suivis <span class="lp-accent">tout seuls.</span></h1>
-  <p class="lp-lead">Vos agents demandent leurs dépôts en ligne, vous validez, et chaque transfert ou remboursement Orange Money est enregistré automatiquement grâce aux SMS.</p>
+  <p class="lp-lead">Vos agents demandent leurs dépôts en ligne, vous validez, et chaque transfert ou remboursement Orange Money ou Moov Money est enregistré automatiquement grâce aux SMS.</p>
   <a class="lp-btn lp-btn-main" href="<?= h($cta) ?>"><?= $open ? 'Commencer gratuitement' : 'Se connecter' ?> <?= $arrow ?></a>
   <p class="lp-note"><?= $trial ?> jours gratuits · sans engagement · aucun code secret demandé</p>
 </section>
@@ -134,7 +134,7 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
         <div class="lp-mini-ok"><?= icon('check', 14) ?> 2 opérations enregistrées</div>
       </div>
       <h3>SMS lus automatiquement</h3>
-      <p>Un téléphone Android avec votre SIM transmet les SMS Orange Money. Vos SMS personnels restent privés.</p>
+      <p>Un téléphone Android avec vos SIM transmet les SMS Orange Money et Moov Money. Vos SMS personnels restent privés.</p>
     </article>
     <article class="lp-tile">
       <div class="lp-illus">
@@ -184,7 +184,7 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
 <section class="lp-panel lp-white lp-trust">
   <span class="lp-ic lp-ic-green lp-ic-xl"><?= icon('lock', 26) ?></span>
   <h2>Votre argent ne passe <span class="lp-accent">jamais</span> par nous.</h2>
-  <p><?= h(app_name()) ?> est un outil de suivi : vous faites vos transferts vous-même, comme d'habitude. Aucun code secret Orange Money n'est demandé ni enregistré.</p>
+  <p><?= h(app_name()) ?> est un outil de suivi : vous faites vos transferts vous-même, comme d'habitude. Aucun code secret Mobile Money n'est demandé ni enregistré.</p>
 </section>
 
 <!-- ============================================================ Tarifs -->
@@ -217,11 +217,11 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
   <div class="lp-head"><h2>Questions <span class="lp-accent">fréquentes</span></h2></div>
   <div class="lp-faq">
     <details><summary>Dois-je donner mon code secret Orange Money ?<?= $chev ?></summary><p>Non, jamais. Vous faites vos transferts vous-même ; <?= h(app_name()) ?> lit seulement les SMS de confirmation pour tenir les comptes.</p></details>
-    <details><summary>De quoi ai-je besoin pour commencer ?<?= $chev ?></summary><p>Un téléphone Android avec la SIM Orange Money de votre activité et Internet. Vous installez notre application en 2 minutes, puis vous ajoutez vos agents.</p></details>
+    <details><summary>De quoi ai-je besoin pour commencer ?<?= $chev ?></summary><p>Un téléphone Android avec la SIM Orange Money et/ou Moov Money de votre activité, et Internet. Vous installez notre application en 2 minutes, puis vous ajoutez vos agents.</p></details>
     <details><summary>Mes agents doivent-ils installer quelque chose ?<?= $chev ?></summary><p>Non. Ils ouvrent leur espace avec leur numéro et un code PIN que vous leur donnez, et peuvent l'ajouter à l'écran d'accueil comme une application.</p></details>
     <details><summary>Et si un agent rembourse en cash ou en plusieurs fois ?<?= $chev ?></summary><p>Les remboursements partiels sont détectés automatiquement ; le cash s'enregistre en un clic sur la fiche de l'agent.</p></details>
     <details><summary>Que se passe-t-il si j'arrête de payer ?<?= $chev ?></summary><p>Votre espace passe en lecture seule : tout votre historique reste disponible et se débloque dès le paiement suivant.</p></details>
-    <details><summary>Comment payer l'abonnement ?<?= $chev ?></summary><p>Par Orange Money depuis votre numéro : l'abonnement est prolongé automatiquement dès réception.</p></details>
+    <details><summary>Comment payer l'abonnement ?<?= $chev ?></summary><p>Par Orange Money ou Moov Money depuis votre numéro : l'abonnement est prolongé automatiquement dès réception.</p></details>
   </div>
 </section>
 
@@ -244,7 +244,7 @@ $chev = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="cur
     <a href="<?= h(url('agent/login')) ?>">Espace agent</a>
     <?php if ($wa !== ''): ?><a href="<?= h($wa) ?>" target="_blank" rel="noopener">Support WhatsApp</a><?php endif; ?>
   </nav>
-  <p><?= h(app_name()) ?> est un outil de suivi indépendant, compatible avec Orange Money. Il n'est pas affilié à Orange.</p>
+  <p><?= h(app_name()) ?> est un outil de suivi indépendant, compatible avec Orange Money et Moov Money. Il n'est affilié ni à Orange ni à Moov.</p>
 </footer>
 </body>
 </html>

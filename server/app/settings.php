@@ -11,6 +11,7 @@ function setting_defaults(): array
         'registrations_open' => '1',
         // Numéro Orange Money où les distributeurs paient leur abonnement.
         'pay_number' => '',
+        'pay_number_moov' => '',
         'plans' => '',
         'support_whatsapp' => '',
     ];
@@ -23,6 +24,12 @@ function dsetting_defaults(): array
         // Code USSD affiché au distributeur pour faire le dépôt (il compose lui-même).
         // {number} = numéro de l'agent, {amount} = montant entier. Vide = pas de raccourci.
         'deposit_ussd' => '',
+        'deposit_ussd_moov' => '',
+        // Numéros où les agents remboursent (affichés dans leur espace, page « Rembourser »).
+        'receive_orange' => '',
+        'receive_moov' => '',
+        // Opérateurs utilisés : orange, moov (séparés par des virgules).
+        'operators' => 'orange',
         // Vérifie que le nouveau solde annoncé par le SMS correspond à l'ancien solde ± le montant.
         'balance_check' => '1',
         'min_request' => '1000',
@@ -196,9 +203,9 @@ function setting_set(string $name, ?string $value): void
 }
 
 /** Code USSD de dépôt pour un agent, ou '' si non configuré. */
-function deposit_ussd(string $phone, float $amount): string
+function deposit_ussd(string $phone, float $amount, ?string $operator = null): string
 {
-    $tpl = trim((string)dsetting('deposit_ussd'));
+    $tpl = trim((string)dsetting(($operator ?? 'orange') === 'moov' ? 'deposit_ussd_moov' : 'deposit_ussd'));
     $k = phone_key($phone);
     if ($tpl === '' || $k === null) {
         return '';

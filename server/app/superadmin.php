@@ -78,8 +78,27 @@ function superadmin_route(string $method, array $p): void
     switch ($a) {
         case '':
             $search = trim((string)($_GET['q'] ?? ''));
-            superadmin_page('superadmin_home', 'Distributeurs', ['search' => $search, 'rows' => superadmin_distributors($search), 'stats' => superadmin_stats()]);
+            $filter = (string)($_GET['f'] ?? 'all');
+            superadmin_page('superadmin_home', 'Distributeurs', [
+                'search' => $search, 'filter' => $filter,
+                'rows' => superadmin_distributors($search, $filter),
+                'stats' => superadmin_stats(),
+                'charts' => superadmin_charts(),
+                'soon' => superadmin_distributors('', 'soon'),
+                'recent_payments' => q_all("SELECT p.*, d.name AS dist_name FROM subscription_payments p LEFT JOIN distributors d ON d.id = p.distributor_id WHERE p.status = 'ok' ORDER BY p.id DESC LIMIT 5"),
+            ]);
             return;
+
+        case 'new':
+            superadmin_new($method);
+            return;
+
+        case 'announcements':
+            superadmin_announcements($method, array_slice($p, 1));
+            return;
+
+        case 'export':
+            superadmin_export((string)($p[1] ?? ''));
 
         case 'logout':
             start_session();
@@ -102,7 +121,7 @@ function superadmin_route(string $method, array $p): void
     superadmin_page('message', 'Page introuvable', ['text' => 'Cette page n\'existe pas.']);
 }
 
-function superadmin_distributors(string $search = ''): array
+function superadmin_distributors(string $search = '', string $filter = 'all'): array
 {
     $params = [];
     $where = '1=1';
@@ -111,15 +130,33 @@ function superadmin_distributors(string $search = ''): array
         $where = '(d.name LIKE ? OR d.phone LIKE ? OR d.id IN (SELECT distributor_id FROM users WHERE email LIKE ?))';
         $params = [$like, $like, $like];
     }
-    return q_all(
+    $rows = q_all(
         "SELECT d.*,
             (SELECT email FROM users u WHERE u.distributor_id = d.id ORDER BY u.id LIMIT 1) AS email,
+            (SELECT MAX(last_login_at) FROM users u WHERE u.distributor_id = d.id) AS last_login_at,
             (SELECT COUNT(*) FROM agents a WHERE a.distributor_id = d.id AND a.active = 1) AS agents,
             (SELECT MAX(occurred_at) FROM operations o WHERE o.distributor_id = d.id) AS last_op_at,
             (SELECT MAX(last_seen_at) FROM devices v WHERE v.distributor_id = d.id) AS device_seen_at
          FROM distributors d WHERE $where ORDER BY d.created_at DESC",
         $params
     );
+    return array_values(array_filter($rows, fn($d) => superadmin_match($d, $filter)));
+}
+
+/** Filtres de la liste : payants, essai, expirés, suspendus, à renouveler sous 7 jours. */
+function superadmin_match(array $d, string $filter): bool
+{
+    $active = dist_active($d);
+    $left = dist_days_left($d);
+    return match ($filter) {
+        'paying' => $active && !in_array($d['plan'], ['essai', 'offert'], true),
+        'trial' => $active && $d['plan'] === 'essai',
+        'expired' => $d['status'] === 'active' && !$active,
+        'suspended' => $d['status'] === 'suspended',
+        'soon' => $active && $left !== null && $left <= 7,
+        'offert' => $d['plan'] === 'offert',
+        default => true,
+    };
 }
 
 function superadmin_stats(): array
@@ -204,12 +241,49 @@ function superadmin_distributor(string $method, array $p): void
                 start_session();
                 $_SESSION['as_did'] = $id;
                 redirect('admin');
+            case 'email':
+                $email = mb_strtolower(trim((string)($_POST['email'] ?? '')));
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    flash('Email invalide.', 'err');
+                } elseif (q_one('SELECT id FROM users WHERE LOWER(email) = ? AND (distributor_id IS NULL OR distributor_id <> ?)', [$email, $id])) {
+                    flash('Cet email est déjà utilisé par un autre compte.', 'err');
+                } else {
+                    q("UPDATE users SET email = ? WHERE distributor_id = ? AND role = 'owner'", [$email, $id]);
+                    flash('Email de connexion changé.');
+                }
+                break;
+            case 'trial': // ajoute des jours (essai ou geste commercial)
+                $days = max(1, min(365, (int)($_POST['days'] ?? 7)));
+                $from = !empty($d['paid_until']) && $d['paid_until'] > now() ? strtotime($d['paid_until'] . ' UTC') : time();
+                db_update('distributors', ['paid_until' => gmdate('Y-m-d H:i:s', $from + $days * 86400)], 'id = :id', ['id' => $id]);
+                flash($days . ' jour(s) ajouté(s).');
+                break;
+            case 'revoke_device':
+                q('UPDATE devices SET token_hash = NULL, pair_code = NULL WHERE distributor_id = ?', [$id]);
+                flash('Téléphone dissocié : le distributeur doit générer un nouveau code.');
+                break;
+            case 'delete':
+                if (trim((string)($_POST['confirm'] ?? '')) !== $d['name']) {
+                    flash('Suppression annulée : le nom saisi ne correspond pas.', 'err');
+                    break;
+                }
+                db_tx(function () use ($id) {
+                    foreach (['operations', 'deposit_requests', 'agent_phones', 'agents', 'sms_messages', 'devices', 'push_subscriptions', 'subscription_payments', 'users'] as $t) {
+                        q("DELETE FROM $t WHERE distributor_id = ?", [$id]);
+                    }
+                    q('DELETE FROM distributors WHERE id = ?', [$id]);
+                });
+                flash('Distributeur « ' . $d['name'] . ' » et toutes ses données supprimés.');
+                redirect('superadmin');
         }
         redirect('superadmin/d/' . $id);
     }
     superadmin_page('superadmin_distributor', $d['name'], [
         'd' => $d,
-        'owner' => q_one("SELECT email, created_at FROM users WHERE distributor_id = ? ORDER BY id LIMIT 1", [$id]),
+        'owner' => q_one("SELECT email, created_at, last_login_at FROM users WHERE distributor_id = ? ORDER BY id LIMIT 1", [$id]),
+        'agents' => q_all('SELECT a.id, a.name, a.login_phone, a.active, a.last_login_at FROM agents a WHERE a.distributor_id = ? ORDER BY a.name LIMIT 200', [$id]),
+        'device' => q_one('SELECT * FROM devices WHERE distributor_id = ? AND active = 1 ORDER BY id DESC LIMIT 1', [$id]),
+        'volume' => (float)q_val("SELECT COALESCE(SUM(amount),0) FROM operations WHERE distributor_id = ? AND status = 'ok' AND kind = 'depot' AND occurred_at >= ?", [$id, gmdate('Y-m-d H:i:s', time() - 30 * 86400)]),
         'payments' => q_all('SELECT * FROM subscription_payments WHERE distributor_id = ? ORDER BY id DESC LIMIT 30', [$id]),
         'counts' => [
             'agents' => (int)q_val('SELECT COUNT(*) FROM agents WHERE distributor_id = ? AND active = 1', [$id]),
@@ -256,6 +330,7 @@ function superadmin_settings(string $method, array $user): void
         $form = (string)($_POST['form'] ?? '');
         if ($form === 'platform') {
             setting_set('pay_number', phone_key((string)($_POST['pay_number'] ?? '')) ?? '');
+            setting_set('pay_number_moov', phone_key((string)($_POST['pay_number_moov'] ?? '')) ?? '');
             setting_set('support_whatsapp', mb_substr(trim((string)($_POST['support_whatsapp'] ?? '')), 0, 30));
             setting_set('trial_days', (string)max(0, min(90, (int)($_POST['trial_days'] ?? 30))));
             setting_set('registrations_open', !empty($_POST['registrations_open']) ? '1' : '0');
@@ -346,4 +421,136 @@ function register_route(string $method): void
         }
     }
     view('register', ['error' => $error, 'open' => $open]);
+}
+
+/* ------------------------------------------------------------------ Statistiques */
+
+function superadmin_charts(): array
+{
+    $months = [];
+    $tz = local_tz();
+    $names = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    for ($i = 5; $i >= 0; $i--) {
+        $start = (new DateTime('first day of this month 00:00', $tz))->modify("-$i month");
+        $end = (clone $start)->modify('+1 month');
+        $su = (clone $start)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        $eu = (clone $end)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        $months[] = [
+            'label' => $names[(int)$start->format('n') - 1],
+            'revenue' => (float)q_val("SELECT COALESCE(SUM(amount),0) FROM subscription_payments WHERE status = 'ok' AND created_at >= ? AND created_at < ?", [$su, $eu]),
+            'signups' => (int)q_val('SELECT COUNT(*) FROM distributors WHERE created_at >= ? AND created_at < ?', [$su, $eu]),
+        ];
+    }
+    return [
+        'months' => $months,
+        'signups_30' => (int)q_val('SELECT COUNT(*) FROM distributors WHERE created_at >= ?', [gmdate('Y-m-d H:i:s', time() - 30 * 86400)]),
+        'agents_total' => (int)q_val('SELECT COUNT(*) FROM agents WHERE active = 1'),
+        'ops_30' => (int)q_val("SELECT COUNT(*) FROM operations WHERE status = 'ok' AND occurred_at >= ?", [gmdate('Y-m-d H:i:s', time() - 30 * 86400)]),
+    ];
+}
+
+/* ------------------------------------------------------------------ Création manuelle */
+
+function superadmin_new(string $method): void
+{
+    $error = null;
+    if ($method === 'POST') {
+        $name = mb_substr(trim((string)($_POST['name'] ?? '')), 0, 120);
+        $phone = phone_key((string)($_POST['phone'] ?? ''));
+        $email = mb_strtolower(trim((string)($_POST['email'] ?? '')));
+        $pass = (string)($_POST['password'] ?? '');
+        $plan = (string)($_POST['plan'] ?? 'essai');
+        $months = max(0, min(36, (int)($_POST['months'] ?? 0)));
+        $allowed = array_merge(['essai', 'offert'], array_keys(plans()));
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($pass) < 8) {
+            $error = 'Nom, email valide et mot de passe (8 caractères min.) obligatoires.';
+        } elseif (q_one('SELECT id FROM users WHERE LOWER(email) = ?', [$email])) {
+            $error = 'Cet email est déjà utilisé.';
+        } elseif ($phone && q_one('SELECT id FROM distributors WHERE phone = ?', [$phone])) {
+            $error = 'Ce numéro est déjà utilisé par un distributeur.';
+        } elseif (!in_array($plan, $allowed, true)) {
+            $error = 'Formule inconnue.';
+        } else {
+            $until = $plan === 'offert' ? null : ($plan === 'essai'
+                ? ts_plus(max(1, (int)setting('trial_days', '30')) * 86400)
+                : (new DateTime('now', new DateTimeZone('UTC')))->modify('+' . max(1, $months) . ' month')->format('Y-m-d H:i:s'));
+            $did = db_tx(function () use ($name, $phone, $email, $pass, $plan, $until) {
+                $did = db_insert('distributors', ['name' => $name, 'phone' => $phone, 'plan' => $plan, 'status' => 'active', 'paid_until' => $until, 'settings' => json_encode([]), 'created_at' => now()]);
+                db_insert('users', ['distributor_id' => $did, 'role' => 'owner', 'email' => $email, 'password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'created_at' => now()]);
+                return $did;
+            });
+            flash('Distributeur créé. Donnez-lui son email et son mot de passe : connexion sur ' . abs_url('admin') . '.');
+            redirect('superadmin/d/' . $did);
+        }
+    }
+    superadmin_page('superadmin_new', 'Nouveau distributeur', ['error' => $error]);
+}
+
+/* ------------------------------------------------------------------ Annonces */
+
+function superadmin_announcements(string $method, array $p): void
+{
+    if ($method === 'POST') {
+        $act = $p[0] ?? 'create';
+        if ($act === 'create') {
+            $title = mb_substr(trim((string)($_POST['title'] ?? '')), 0, 190);
+            if ($title !== '') {
+                $id = db_insert('announcements', [
+                    'title' => $title,
+                    'body' => mb_substr(trim((string)($_POST['body'] ?? '')), 0, 2000) ?: null,
+                    'level' => in_array($_POST['level'] ?? '', ['info', 'warn', 'ok'], true) ? $_POST['level'] : 'info',
+                    'active' => 1,
+                    'created_at' => now(),
+                ]);
+                if (!empty($_POST['push'])) {
+                    $sent = 0;
+                    foreach (q_all('SELECT id FROM distributors WHERE status = ?', ['active']) as $d) {
+                        set_did((int)$d['id']);
+                        $sent += push_notify('📣 ' . $title, (string)($_POST['body'] ?? ''), 'admin', null, 'ann-' . $id);
+                    }
+                    set_did(null);
+                    flash('Annonce publiée et envoyée en notification (' . $sent . ' appareil(s)).');
+                } else {
+                    flash('Annonce publiée dans l\'espace des distributeurs.');
+                }
+            }
+        } elseif (isset($p[1]) && ctype_digit($p[0])) {
+            if ($p[1] === 'toggle') {
+                q('UPDATE announcements SET active = 1 - active WHERE id = ?', [(int)$p[0]]);
+            } elseif ($p[1] === 'delete') {
+                q('DELETE FROM announcements WHERE id = ?', [(int)$p[0]]);
+            }
+        }
+        redirect('superadmin/announcements');
+    }
+    superadmin_page('superadmin_announcements', 'Annonces', ['rows' => q_all('SELECT * FROM announcements ORDER BY id DESC LIMIT 50')]);
+}
+
+/* ------------------------------------------------------------------ Exports CSV (Excel) */
+
+function superadmin_export(string $what): never
+{
+    $rows = [];
+    if ($what === 'payments') {
+        $rows[] = ['Date', 'Distributeur', 'Montant', 'Mois', 'Formule', 'Source', 'Numéro', 'Transaction', 'Statut', 'Note'];
+        foreach (q_all('SELECT p.*, d.name AS dist_name FROM subscription_payments p LEFT JOIN distributors d ON d.id = p.distributor_id ORDER BY p.id DESC') as $r) {
+            $rows[] = [fmt_dt($r['created_at']), $r['dist_name'] ?? '', (int)$r['amount'], (int)$r['months'], plan_label((string)$r['plan']), $r['source'], $r['phone'], $r['txn_id'], $r['status'], $r['note']];
+        }
+    } else {
+        $what = 'distributeurs';
+        $rows[] = ['Nom', 'Email', 'Numéro', 'Formule', 'Statut', 'Valable jusqu\'au', 'Agents actifs', 'Inscrit le', 'Dernière connexion', 'Dernière opération'];
+        foreach (superadmin_distributors() as $d) {
+            $rows[] = [$d['name'], $d['email'], $d['phone'], plan_label($d['plan']), dist_active($d) ? 'actif' : ($d['status'] === 'suspended' ? 'suspendu' : 'expiré'),
+                $d['paid_until'] ? fmt_dt($d['paid_until'], 'd/m/Y') : '', (int)$d['agents'], fmt_dt($d['created_at'], 'd/m/Y'), fmt_dt($d['last_login_at']), fmt_dt($d['last_op_at'])];
+        }
+    }
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="flashdepot-' . $what . '-' . gmdate('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF"); // accents corrects dans Excel
+    foreach ($rows as $r) {
+        fputcsv($out, array_map(fn($v) => (string)($v ?? ''), $r), ';');
+    }
+    fclose($out);
+    exit;
 }

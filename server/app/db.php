@@ -127,6 +127,7 @@ function db_schema(string $driver): array
         role VARCHAR(20) NOT NULL DEFAULT 'owner',
         email VARCHAR(190) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
+        last_login_at $dt NULL,
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE TABLE IF NOT EXISTS settings (
@@ -164,6 +165,7 @@ function db_schema(string $driver): array
         distributor_id $fk NOT NULL,
         reference VARCHAR(20) NOT NULL UNIQUE,
         agent_id $fk NOT NULL,
+        operator VARCHAR(20) NULL,
         amount DECIMAL(14,2) NOT NULL,
         note VARCHAR(255) NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -180,6 +182,7 @@ function db_schema(string $driver): array
         distributor_id $fk NOT NULL,
         agent_id $fk NULL,
         kind VARCHAR(20) NOT NULL,
+        operator VARCHAR(20) NOT NULL DEFAULT 'orange',
         amount DECIMAL(14,2) NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'ok',
         source VARCHAR(20) NOT NULL DEFAULT 'manual',
@@ -206,6 +209,7 @@ function db_schema(string $driver): array
         pair_expires_at $dt NULL,
         last_seen_at $dt NULL,
         last_balance DECIMAL(14,2) NULL,
+        balances $text NULL,
         battery SMALLINT NULL,
         charging SMALLINT NULL,
         app_version VARCHAR(20) NULL,
@@ -220,6 +224,7 @@ function db_schema(string $driver): array
         body $text NOT NULL,
         received_at $dt NOT NULL,
         fingerprint CHAR(64) NOT NULL UNIQUE,
+        operator VARCHAR(20) NULL,
         kind VARCHAR(20) NULL,
         amount DECIMAL(14,2) NULL,
         phone VARCHAR(40) NULL,
@@ -262,6 +267,15 @@ function db_schema(string $driver): array
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE INDEX idx_subpay_dist ON subscription_payments (distributor_id, created_at)";
+    // Annonces du super-admin affichées dans l'espace des distributeurs
+    $t[] = "CREATE TABLE IF NOT EXISTS announcements (
+        id $pk,
+        title VARCHAR(190) NOT NULL,
+        body $text NULL,
+        level VARCHAR(20) NOT NULL DEFAULT 'info',
+        active SMALLINT NOT NULL DEFAULT 1,
+        created_at $dt NOT NULL
+    )$engine";
     $t[] = "CREATE TABLE IF NOT EXISTS login_attempts (
         id $pk,
         ip VARCHAR(64) NOT NULL,
@@ -278,7 +292,7 @@ function db_install_schema(PDO $pdo, string $driver): void
             $pdo->exec($sql);
         } catch (PDOException $e) {
             // Les index existent peut-être déjà (réinstallation) : on ignore.
-            if (stripos($sql, 'CREATE INDEX') !== 0) {
+            if (!preg_match('/^CREATE (UNIQUE )?INDEX/i', $sql)) {
                 throw $e;
             }
         }
@@ -286,7 +300,7 @@ function db_install_schema(PDO $pdo, string $driver): void
 }
 
 /** Version du schéma : les changements faits après l'installation sont appliqués automatiquement. */
-const SCHEMA_VERSION = 3; // 2 : notifications push ; 3 : plusieurs distributeurs
+const SCHEMA_VERSION = 4; // 2 : notifications push ; 3 : plusieurs distributeurs ; 4 : Moov Money, annonces
 
 function db_add_column(string $table, string $column, string $mysqlType, string $sqliteType): void
 {
@@ -362,6 +376,19 @@ function db_migrate(): void
     db_install_schema($pdo, db_driver());
     if ($v >= 1 && $v < 3) {
         db_migrate_to_multi();
+    }
+    if ($v >= 1 && $v < 4) {
+        // Moov Money : opérateur sur chaque opération, soldes séparés par opérateur.
+        db_add_column('operations', 'operator', "VARCHAR(20) NOT NULL DEFAULT 'orange'", "TEXT NOT NULL DEFAULT 'orange'");
+        db_add_column('sms_messages', 'operator', 'VARCHAR(20) NULL', 'TEXT NULL');
+        db_add_column('deposit_requests', 'operator', 'VARCHAR(20) NULL', 'TEXT NULL');
+        db_add_column('devices', 'balances', 'MEDIUMTEXT NULL', 'TEXT NULL');
+        db_add_column('users', 'last_login_at', 'DATETIME NULL', 'TEXT NULL');
+        q("UPDATE operations SET operator = 'orange' WHERE operator IS NULL OR operator = ''");
+        q("UPDATE sms_messages SET operator = 'orange' WHERE operator IS NULL AND kind IS NOT NULL");
+        foreach (q_all('SELECT id, last_balance FROM devices WHERE last_balance IS NOT NULL AND balances IS NULL') as $d) {
+            db_update('devices', ['balances' => json_encode(['orange' => (float)$d['last_balance']])], 'id = :id', ['id' => $d['id']]);
+        }
     }
     setting_set('schema_version', (string)SCHEMA_VERSION);
 }

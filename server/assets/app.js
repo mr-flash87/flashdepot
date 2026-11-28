@@ -24,6 +24,24 @@
     });
   });
 
+  /* ---------------- Annonces du super-admin (fermées = ne reviennent plus) ---------------- */
+  $$('[data-ann]').forEach(function (el) {
+    var key = 'fd-ann-' + el.getAttribute('data-ann');
+    if (store.get(key) === '1') return;
+    el.hidden = false;
+    el.querySelector('[data-ann-close]').addEventListener('click', function () { el.remove(); store.set(key, '1'); });
+  });
+
+  /* ---------------- Copier un numéro ---------------- */
+  $$('[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-copy'), label = b.innerHTML;
+      var done = function () { b.textContent = 'Numéro copié ✓'; setTimeout(function () { b.innerHTML = label; }, 2000); };
+      if (navigator.clipboard) { navigator.clipboard.writeText(v).then(done, function () { prompt('Numéro :', v); }); }
+      else { prompt('Numéro :', v); }
+    });
+  });
+
   /* ---------------- Messages qui disparaissent ---------------- */
   $$('[data-autohide]').forEach(function (el) {
     setTimeout(function () { el.style.transition = 'opacity .4s'; el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 450); }, 6000);

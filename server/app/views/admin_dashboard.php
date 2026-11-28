@@ -33,11 +33,13 @@ $online = $device && device_online($device);
     <div class="stat-v"><?= h(fmt_amount($stats['remb_cash_today'])) ?></div>
     <div class="stat-s">aujourd'hui</div>
   </a>
+  <?php foreach (dist_operators() as $op): $bal = $device ? device_balance($device, $op) : null; ?>
   <a class="stat" href="<?= h(url('admin/device')) ?>">
-    <div class="stat-top"><span class="stat-l">Solde Orange Money</span><span class="chipic <?= $online ? 'in' : 'warn' ?>"><?= icon('phone') ?></span></div>
-    <div class="stat-v"><?= $device && $device['last_balance'] !== null ? h(fmt_amount($device['last_balance'])) : '—' ?></div>
+    <div class="stat-top"><span class="stat-l">Solde <?= h(mm_name($op)) ?></span><span class="chipic <?= $online ? 'in' : 'warn' ?>"><?= icon('phone') ?></span></div>
+    <div class="stat-v"><?= $bal !== null ? h(fmt_amount($bal)) : '—' ?></div>
     <div class="stat-s"><?= $device ? ($online ? 'téléphone en ligne' : 'hors ligne · ' . h(ago($device['last_seen_at']))) : 'téléphone non associé' ?></div>
   </a>
+  <?php endforeach; ?>
 </div>
 
 <?php if ($stats['unassigned'] || $stats['review']): ?>

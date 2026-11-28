@@ -39,7 +39,7 @@ $sumOk = fn(array $kinds) => array_sum(array_map(fn($o) => in_array($o['kind'], 
       <p class="small muted">À utiliser si un SMS n'est pas remonté, ou pour corriger une erreur.</p>
       <?php foreach ([
           'depot' => 'Dépôt envoyé (sans SMS)',
-          'om' => 'Remboursement OM (sans SMS)',
+          'om' => 'Remboursement Mobile Money (sans SMS)',
           'plus' => 'Correction : ajouter à la dette',
           'moins' => 'Correction : retirer de la dette',
       ] as $act => $label): ?>
@@ -49,6 +49,9 @@ $sumOk = fn(array $kinds) => array_sum(array_map(fn($o) => in_array($o['kind'], 
           <div class="row">
             <input type="text" name="amount" inputmode="numeric" required placeholder="Montant">
             <input type="text" name="note" placeholder="Note">
+            <?php if (count(dist_operators()) > 1 && in_array($act, ['depot', 'om'], true)): ?>
+              <select name="operator" style="width:auto;margin:0"><?php foreach (dist_operators() as $op): ?><option value="<?= h($op) ?>"><?= h(mm_operators()[$op]['short']) ?></option><?php endforeach; ?></select>
+            <?php endif; ?>
             <button class="btn">OK</button>
           </div>
         </form>

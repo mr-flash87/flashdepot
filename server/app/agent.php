@@ -83,6 +83,10 @@ function agent_route(string $method, array $p): void
             agent_page($agent, 'agent_statement', 'Mon relevé');
             return;
 
+        case 'rembourser':
+            agent_page($agent, 'agent_repay', 'Rembourser');
+            return;
+
         case 'compte':
             agent_page($agent, 'agent_account', 'Code PIN');
             return;
@@ -126,7 +130,9 @@ function agent_route(string $method, array $p): void
                     flash('Vous avez déjà 3 demandes en attente. Attendez la réponse du distributeur.', 'err');
                     redirect('agent/demande');
                 } else {
-                    request_create((int)$agent['id'], $amount, trim((string)($_POST['note'] ?? '')));
+                    $opr = (string)($_POST['operator'] ?? '');
+                    $opr = in_array($opr, dist_operators(), true) ? $opr : (count(dist_operators()) === 1 ? dist_operators()[0] : null);
+                    request_create((int)$agent['id'], $amount, trim((string)($_POST['note'] ?? '')), $opr);
                     flash('Demande de ' . fmt_amount($amount) . ' envoyée au distributeur ✅');
                 }
             }

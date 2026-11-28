@@ -10,6 +10,8 @@ $paired = $device && $device['token_hash'];
   <h2>Abonnements</h2>
   <label>Votre numéro Orange Money (où les distributeurs paient)</label>
   <input type="tel" name="pay_number" inputmode="numeric" value="<?= h(setting('pay_number')) ?>" placeholder="70 00 00 00">
+  <label>Votre numéro Moov Money (facultatif)</label>
+  <input type="tel" name="pay_number_moov" inputmode="numeric" value="<?= h(setting('pay_number_moov')) ?>" placeholder="70 00 00 00">
   <label>WhatsApp du support</label>
   <input type="text" name="support_whatsapp" value="<?= h(setting('support_whatsapp')) ?>" placeholder="+226 70 00 00 00">
   <label>Durée de l'essai gratuit (jours)</label>

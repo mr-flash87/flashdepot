@@ -35,6 +35,7 @@ if ($area === 'admin') {
     $tabs = [
         ['/superadmin', 'superadmin', 'users', 'Distributeurs', 0],
         ['/superadmin/payments', 'superadmin/payments', 'wallet', 'Paiements', (int)q_val("SELECT COUNT(*) FROM subscription_payments WHERE status IN ('unassigned','review')")],
+        ['/superadmin/announcements', 'superadmin/announcements', 'bell', 'Annonces', 0],
         ['/superadmin/settings', 'superadmin/settings', 'gear', 'Plateforme', 0],
     ];
     $more = [['#install', 'download', 'Installer l\'app']];
@@ -42,11 +43,12 @@ if ($area === 'admin') {
 } elseif ($area === 'agent') {
     $tabs = [
         ['/agent', 'agent', 'home', 'Accueil', 0],
-        ['/agent/demande', 'agent/demande', 'send', 'Demander', 0],
+        ['/agent/demande', 'agent/demande', 'inbox', 'Demander', 0],
+        ['/agent/rembourser', 'agent/rembourser', 'send', 'Rembourser', 0],
         ['/agent/releve', 'agent/releve', 'chart', 'Relevé', 0],
     ];
     $more = [
-        ['agent/compte', 'lock', 'Code PIN'],
+        ['agent/compte', 'lock', 'Mon compte'],
         ['#notif', 'bell', 'Notifications'],
         ['#install', 'download', 'Installer l\'app'],
     ];
@@ -120,6 +122,12 @@ $pwa = [
   <?php if (admin_impersonating()): ?>
     <div class="alert warn">Vous consultez l'espace de <b><?= h($dd['name']) ?></b> (assistance). <a href="<?= h(url('admin/logout')) ?>">Revenir au super-admin</a></div>
   <?php endif; ?>
+  <?php foreach (q_all('SELECT * FROM announcements WHERE active = 1 ORDER BY id DESC LIMIT 3') as $ann): ?>
+    <div class="alert <?= h(['ok' => 'ok', 'warn' => 'warn'][$ann['level']] ?? 'info') ?> ann" data-ann="<?= (int)$ann['id'] ?>" hidden>
+      <div><b><?= h($ann['title']) ?></b><?= $ann['body'] ? '<div class="small" style="font-weight:500">' . nl2br(h($ann['body'])) . '</div>' : '' ?></div>
+      <button type="button" class="x" data-ann-close aria-label="Fermer"><?= icon('x', 16) ?></button>
+    </div>
+  <?php endforeach; ?>
   <?php if (!dist_active($dd)): ?>
     <div class="alert err">Abonnement expiré : votre espace est en lecture seule, vos données sont conservées. <a href="<?= h(url('admin/subscription')) ?>">Renouveler</a></div>
   <?php elseif ($left !== null && $left <= 7): ?>

@@ -9,17 +9,17 @@ $hasApp = in_array($area, ['admin', 'agent', 'superadmin'], true);
     // Reprend les onglets calculés par layout_top.php (même requête).
     $tabsB = match ($area) {
         'admin' => [['/admin', 'admin', 'home', 'Accueil'], ['/admin/requests', 'admin/requests', 'inbox', 'Demandes'], ['/admin/agents', 'admin/agents', 'users', 'Agents'], ['/admin/operations', 'admin/operations', 'list', 'Opérations']],
-        'superadmin' => [['/superadmin', 'superadmin', 'users', 'Distributeurs'], ['/superadmin/payments', 'superadmin/payments', 'wallet', 'Paiements'], ['/superadmin/settings', 'superadmin/settings', 'gear', 'Plateforme']],
-        default => [['/agent', 'agent', 'home', 'Accueil'], ['/agent/demande', 'agent/demande', 'send', 'Demander'], ['/agent/releve', 'agent/releve', 'chart', 'Relevé']],
+        'superadmin' => [['/superadmin', 'superadmin', 'home', 'Accueil'], ['/superadmin/payments', 'superadmin/payments', 'wallet', 'Paiements'], ['/superadmin/announcements', 'superadmin/announcements', 'bell', 'Annonces'], ['/superadmin/settings', 'superadmin/settings', 'gear', 'Plateforme']],
+        default => [['/agent', 'agent', 'home', 'Accueil'], ['/agent/demande', 'agent/demande', 'inbox', 'Demander'], ['/agent/rembourser', 'agent/rembourser', 'send', 'Rembourser'], ['/agent/releve', 'agent/releve', 'chart', 'Relevé']],
     };
     $relB = '/' . trim(substr(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/', strlen(base_path())), '/');
     $badges = [];
     if ($area === 'admin' && !empty($stats)) {
         $badges = ['/admin/requests' => $stats['pending_requests'], '/admin/operations' => $stats['unassigned'] + $stats['review']];
     }
-    $moreB = $area === 'superadmin' ? [['#install', 'download', 'Installer']] : ($area === 'admin'
+    $moreB = $area === 'superadmin' ? [['superadmin/new', 'plus', 'Nouveau distributeur'], ['superadmin/export/distributeurs', 'download', 'Export distributeurs'], ['superadmin/export/payments', 'download', 'Export paiements'], ['#install', 'download', 'Installer']] : ($area === 'admin'
         ? [['admin/device', 'phone', 'Téléphone'], ['admin/sms', 'sms', 'SMS reçus'], ['admin/settings', 'gear', 'Réglages'], ['admin/subscription', 'wallet', 'Abonnement'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer']]
-        : [['agent/compte', 'lock', 'Code PIN'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer']]);
+        : [['agent/compte', 'lock', 'Mon compte'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer']]);
 ?>
 <nav class="tabbar">
   <?php foreach ($tabsB as [$prefix, $href, $ic, $label]):

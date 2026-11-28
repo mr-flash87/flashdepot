@@ -4,6 +4,7 @@ $active = dist_active($d);
 $left = dist_days_left($d);
 $limit = plan_agent_limit($d);
 $pay = trim((string)setting('pay_number'));
+$payMoov = trim((string)setting('pay_number_moov'));
 $support = trim((string)setting('support_whatsapp'));
 ?>
 <div class="page-head"><div><a class="back" href="<?= h(url('admin/settings')) ?>">← Réglages</a><h1>Abonnement</h1></div></div>
@@ -25,7 +26,7 @@ $support = trim((string)setting('support_whatsapp'));
   <h2>Payer ou renouveler</h2>
   <?php if ($pay !== ''): ?>
     <ol class="steps">
-      <li>Depuis votre numéro <b class="mono"><?= $d['phone'] ? h(fmt_phone($d['phone'])) : '— (à renseigner dans Réglages)' ?></b>, envoyez par Orange Money le montant de la formule choisie au <b class="mono"><?= h(fmt_phone($pay)) ?></b>.</li>
+      <li>Depuis votre numéro <b class="mono"><?= $d['phone'] ? h(fmt_phone($d['phone'])) : '— (à renseigner dans Réglages)' ?></b>, envoyez le montant de la formule choisie par <b>Orange Money</b> au <b class="mono"><?= h(fmt_phone($pay)) ?></b><?php if ($payMoov !== ''): ?> ou par <b>Moov Money</b> au <b class="mono"><?= h(fmt_phone($payMoov)) ?></b><?php endif; ?>.</li>
       <li>Votre abonnement est prolongé <b>automatiquement</b> dès réception (quelques minutes).</li>
       <li>Pour plusieurs mois, envoyez le montant multiplié (ex. 3 mois Pro = <?= h(fmt_amount(plans()['pro']['price'] * 3)) ?>).</li>
     </ol>

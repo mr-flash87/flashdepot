@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 const OP_KINDS = [
     'depot' => ['Dépôt envoyé', 1],
-    'remb_om' => ['Remboursement Orange Money', -1],
+    'remb_om' => ['Remboursement Mobile Money', -1],
     'remb_cash' => ['Remboursement cash', -1],
     'ajust_plus' => ['Correction (+)', 1],
     'ajust_moins' => ['Correction (−)', -1],
@@ -146,7 +146,7 @@ function op_create(array $data): int
 {
     $data += [
         'distributor_id' => did(),
-        'agent_id' => null, 'status' => 'ok', 'source' => 'manual', 'phone' => null, 'counterpart' => null,
+        'agent_id' => null, 'operator' => 'orange', 'status' => 'ok', 'source' => 'manual', 'phone' => null, 'counterpart' => null,
         'txn_id' => null, 'sms_id' => null, 'request_id' => null, 'note' => null, 'created_by' => null,
         'occurred_at' => now(), 'created_at' => now(),
     ];
@@ -180,6 +180,7 @@ function ledger_from_sms(array $sms, bool $balanceOk): array
     $opId = op_create([
         'agent_id' => $agent['id'] ?? null,
         'kind' => $kind,
+        'operator' => $sms['operator'] ?: 'orange',
         'amount' => $amount,
         'status' => $status,
         'source' => 'sms',
@@ -205,8 +206,9 @@ function request_link_deposit(int $opId): void
     }
     $req = q_one(
         "SELECT * FROM deposit_requests WHERE agent_id = ? AND distributor_id = ? AND status IN ('approved','pending') AND operation_id IS NULL AND amount = ?
+         AND (operator IS NULL OR operator = ?)
          ORDER BY CASE WHEN status = 'approved' THEN 0 ELSE 1 END, created_at ASC LIMIT 1",
-        [$op['agent_id'], did(), $op['amount']]
+        [$op['agent_id'], did(), $op['amount'], $op['operator'] ?? 'orange']
     );
     if (!$req) {
         return;
@@ -282,12 +284,13 @@ function request_find(int $id): ?array
     return q_one('SELECT r.*, a.name AS agent_name, a.login_phone FROM deposit_requests r JOIN agents a ON a.id = r.agent_id WHERE r.id = ? AND r.distributor_id = ?', [$id, did()]);
 }
 
-function request_create(int $agentId, float $amount, string $note): int
+function request_create(int $agentId, float $amount, string $note, ?string $operator = null): int
 {
     $id = db_insert('deposit_requests', [
         'distributor_id' => did(),
         'reference' => new_reference('D'),
         'agent_id' => $agentId,
+        'operator' => isset(mm_operators()[$operator ?? '']) ? $operator : null,
         'amount' => $amount,
         'note' => $note !== '' ? mb_substr($note, 0, 255) : null,
         'status' => 'pending',
@@ -301,7 +304,23 @@ function request_create(int $agentId, float $amount, string $note): int
 function request_target_phone(array $req): string
 {
     $phones = agent_phones((int)$req['agent_id']);
+    // Dépôt Moov : de préférence le numéro Moov de l'agent (reconnu à son préfixe).
+    $op = $req['operator'] ?? null;
+    if ($op) {
+        foreach ($phones as $k) {
+            if (phone_operator($k) === $op) {
+                return $k;
+            }
+        }
+    }
     return $phones[0] ?? (string)$req['login_phone'];
+}
+
+/** Opérateurs activés par le distributeur (Orange Money par défaut). */
+function dist_operators(): array
+{
+    $ops = array_values(array_intersect(explode(',', (string)dsetting('operators', 'orange')), array_keys(mm_operators())));
+    return $ops ?: ['orange'];
 }
 
 /* ------------------------------------------------------------------ Tableau de bord */
@@ -312,7 +331,8 @@ function dashboard_stats(): array
     $today = today_start_utc();
     $sum = fn(string $kinds) => (float)q_val("SELECT COALESCE(SUM(amount),0) FROM operations WHERE distributor_id = ? AND status = 'ok' AND kind IN ($kinds) AND occurred_at >= ?", [$d, $today]);
     return [
-        'total_due' => (float)q_val('SELECT ' . balance_sql() . ' FROM operations o WHERE o.distributor_id = ? AND o.agent_id IS NOT NULL', [$d]),
+        // Somme des dettes (les avances d'un agent ne réduisent pas la dette d'un autre).
+        'total_due' => (float)q_val('SELECT COALESCE(SUM(due), 0) FROM (SELECT ' . balance_sql() . ' AS due FROM operations o WHERE o.distributor_id = ? AND o.agent_id IS NOT NULL GROUP BY o.agent_id) t WHERE due > 0', [$d]),
         'agents_due' => (int)q_val('SELECT COUNT(*) FROM (SELECT o.agent_id FROM operations o WHERE o.distributor_id = ? AND o.agent_id IS NOT NULL GROUP BY o.agent_id HAVING ' . balance_sql() . ' > 0) t', [$d]),
         'depots_today' => $sum("'depot'"),
         'remb_om_today' => $sum("'remb_om'"),

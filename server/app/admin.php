@@ -63,6 +63,7 @@ function admin_route(string $method, array $p): void
                 if ($u && password_verify((string)($_POST['password'] ?? ''), $u['password_hash'])) {
                     session_regenerate_id(true);
                     $_SESSION['uid'] = (int)$u['id'];
+                    db_update('users', ['last_login_at' => now()], 'id = :id', ['id' => $u['id']]);
                     unset($_SESSION['as_did']);
                     redirect($u['role'] === 'superadmin' ? 'superadmin' : 'admin');
                 }
@@ -359,7 +360,8 @@ function admin_agents(string $method, array $p): void
                 if (!$amount || $amount <= 0) {
                     flash('Montant invalide.', 'err');
                 } else {
-                    $opId = op_create(['agent_id' => $agent['id'], 'kind' => $kinds[$act], 'amount' => $amount, 'note' => $note ?: null, 'created_by' => 'admin']);
+                    $opr = isset(mm_operators()[$_POST['operator'] ?? '']) ? $_POST['operator'] : 'orange';
+                    $opId = op_create(['agent_id' => $agent['id'], 'kind' => $kinds[$act], 'operator' => $opr, 'amount' => $amount, 'note' => $note ?: null, 'created_by' => 'admin']);
                     notify_op($opId, false);
                     flash(op_label($kinds[$act]) . ' de ' . fmt_amount($amount) . ' enregistré. Reste à payer : ' . fmt_amount(agent_balance((int)$agent['id'])) . '.');
                 }
@@ -475,9 +477,11 @@ function admin_device($method, array $p): void
             flash('Code généré : saisissez-le dans l\'application dans les 30 minutes.');
         } elseif ($act === 'balance') {
             $amount = input_amount($_POST['balance'] ?? '');
-            if ($amount !== null) {
-                q('UPDATE devices SET last_balance = ? WHERE active = 1 AND distributor_id = ?', [$amount, did()]);
-                flash('Solde Orange Money enregistré.');
+            $op = isset(mm_operators()[$_POST['operator'] ?? '']) ? $_POST['operator'] : 'orange';
+            $dev = q_one('SELECT id FROM devices WHERE distributor_id = ? AND active = 1 ORDER BY id DESC LIMIT 1', [did()]);
+            if ($amount !== null && $dev) {
+                device_set_balance((int)$dev['id'], $op, $amount);
+                flash('Solde ' . mm_name($op) . ' enregistré.');
             }
         } elseif ($act === 'revoke') {
             q('UPDATE devices SET token_hash = NULL, pair_code = NULL WHERE active = 1 AND distributor_id = ?', [did()]);
@@ -507,6 +511,13 @@ function admin_settings(string $method, array $user): void
             db_update('distributors', ['name' => $name ?: distributor()['name'], 'phone' => $phone], 'id = :id', ['id' => did()]);
             $GLOBALS['__dist'] = null;
             dsetting_set('deposit_ussd', mb_substr(trim((string)($_POST['deposit_ussd'] ?? '')), 0, 100));
+            if (isset($_POST['deposit_ussd_moov'])) {
+                dsetting_set('deposit_ussd_moov', mb_substr(trim((string)$_POST['deposit_ussd_moov']), 0, 100));
+            }
+            dsetting_set('receive_orange', phone_key((string)($_POST['receive_orange'] ?? '')) ?? '');
+            dsetting_set('receive_moov', phone_key((string)($_POST['receive_moov'] ?? '')) ?? '');
+            $ops = array_values(array_intersect((array)($_POST['operators'] ?? []), array_keys(mm_operators())));
+            dsetting_set('operators', implode(',', $ops ?: ['orange']));
             dsetting_set('balance_check', !empty($_POST['balance_check']) ? '1' : '0');
             dsetting_set('min_request', (string)(int)(input_amount($_POST['min_request'] ?? '') ?? 0));
             flash('Réglages enregistrés.');

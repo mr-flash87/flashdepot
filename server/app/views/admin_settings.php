@@ -14,11 +14,27 @@
   <h2>Général</h2>
   <label>Nom de votre entreprise</label>
   <input type="text" name="dist_name" value="<?= h(distributor()['name']) ?>" required>
-  <label>Votre numéro Orange Money (abonnement)</label>
+  <label>Votre numéro Orange ou Moov Money (abonnement)</label>
   <input type="tel" name="dist_phone" inputmode="numeric" value="<?= h(distributor()['phone']) ?>" placeholder="70 00 00 00">
   <p class="small muted">Payez votre abonnement depuis ce numéro : il est reconnu et prolongé automatiquement.</p>
-  <label>Code USSD de dépôt (facultatif)</label>
+  <label>Opérateurs que vous utilisez</label>
+  <?php foreach (mm_operators() as $code => $o): ?>
+    <label class="check"><input type="checkbox" name="operators[]" value="<?= h($code) ?>" <?= in_array($code, dist_operators(), true) ? 'checked' : '' ?>> <?= h($o['name']) ?></label>
+  <?php endforeach; ?>
+  <p class="small muted">Les SMS des deux opérateurs sont lus par le même téléphone (une SIM Orange et une SIM Moov) : chacun a son propre solde.</p>
+  <label>Numéro où les agents vous remboursent (Orange Money)</label>
+  <input type="tel" name="receive_orange" inputmode="numeric" value="<?= h(dsetting('receive_orange')) ?>" placeholder="Numéro de votre SIM distributeur">
+  <?php if (in_array('moov', dist_operators(), true)): ?>
+  <label>Numéro où les agents vous remboursent (Moov Money)</label>
+  <input type="tel" name="receive_moov" inputmode="numeric" value="<?= h(dsetting('receive_moov')) ?>">
+  <?php endif; ?>
+  <p class="small muted">Affichés dans l'espace de vos agents (page « Rembourser »), avec un bouton pour copier le numéro.</p>
+  <label>Code USSD de dépôt Orange Money (facultatif)</label>
   <input type="text" name="deposit_ussd" value="<?= h(dsetting('deposit_ussd')) ?>" placeholder="*144*…*{number}*{amount}#" class="mono">
+  <?php if (in_array('moov', dist_operators(), true)): ?>
+  <label>Code USSD de dépôt Moov Money (facultatif)</label>
+  <input type="text" name="deposit_ussd_moov" value="<?= h(dsetting('deposit_ussd_moov')) ?>" placeholder="*555*…*{number}*{amount}#" class="mono">
+  <?php endif; ?>
   <p class="small muted">Affiche un bouton « Composer » sur chaque demande. <code>{number}</code> = numéro de l'agent, <code>{amount}</code> = montant. Vous saisissez toujours votre code secret vous-même.</p>
   <label>Montant minimum d'une demande</label>
   <input type="text" name="min_request" inputmode="numeric" value="<?= h(dsetting('min_request')) ?>">

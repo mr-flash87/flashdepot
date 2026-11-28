@@ -30,7 +30,7 @@
       <label>Mot de passe</label>
       <input type="password" name="password" required autocomplete="current-password">
     <?php else: ?>
-      <label>Votre numéro Orange Money</label>
+      <label>Votre numéro (Orange ou Moov Money)</label>
       <input type="tel" name="phone" inputmode="numeric" required placeholder="70 00 00 00" autocomplete="username" value="<?= h($_POST['phone'] ?? '') ?>">
       <label>Code PIN</label>
       <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*" required autocomplete="current-password" class="pin">

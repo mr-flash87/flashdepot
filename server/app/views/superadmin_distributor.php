@@ -27,6 +27,15 @@ $untilLocal = $d['paid_until'] ? fmt_dt($d['paid_until'], 'Y-m-d') : '';
   <div class="stat"><div class="stat-top"><span class="stat-l">Agents actifs</span><span class="chipic blue"><?= icon('users') ?></span></div><div class="stat-v"><?= $counts['agents'] ?></div><div class="stat-s">limite : <?= plan_agent_limit($d) ?: 'illimité' ?></div></div>
   <div class="stat"><div class="stat-top"><span class="stat-l">Opérations</span><span class="chipic out"><?= icon('list') ?></span></div><div class="stat-v"><?= $counts['ops'] ?></div><div class="stat-s"><?= $counts['ops_30'] ?> sur 30 jours</div></div>
   <div class="stat"><div class="stat-top"><span class="stat-l">Téléphone SMS</span><span class="chipic in"><?= icon('phone') ?></span></div><div class="stat-v" style="font-size:16px"><?= h(ago($counts['device'])) ?></div><div class="stat-s">dernier contact</div></div>
+  <div class="stat"><div class="stat-top"><span class="stat-l">Dépôts sur 30 j</span><span class="chipic out"><?= icon('up') ?></span></div><div class="stat-v"><?= h(fmt_amount($volume)) ?></div><div class="stat-s">connexion <?= h(ago($owner['last_login_at'] ?? null)) ?></div></div>
+</div>
+
+<div class="sa-contact">
+  <?php if ($d['phone']): ?>
+    <a class="btn" href="https://wa.me/226<?= h(phone_key($d['phone'])) ?>" target="_blank" rel="noopener"><?= icon('sms') ?> WhatsApp</a>
+    <a class="btn" href="tel:<?= h(phone_key($d['phone'])) ?>"><?= icon('phone') ?> Appeler</a>
+  <?php endif; ?>
+  <?php if (!empty($owner['email'])): ?><a class="btn" href="mailto:<?= h($owner['email']) ?>">Email</a><?php endif; ?>
 </div>
 
 <form method="post" action="<?= h(url('superadmin/d/' . $id . '/extend')) ?>" class="card form">
@@ -78,7 +87,36 @@ $untilLocal = $d['paid_until'] ? fmt_dt($d['paid_until'], 'Y-m-d') : '';
 </section>
 
 <section class="card">
+  <div class="sec-head"><h2>Agents</h2><span class="muted small"><?= count($agents) ?></span></div>
+  <?php if (!$agents): ?><div class="empty">Aucun agent.</div><?php endif; ?>
+  <?php foreach (array_slice($agents, 0, 30) as $ag): ?>
+    <div class="row-link"><span><?= h($ag['name']) ?> <span class="small muted">· <?= h(fmt_phone($ag['login_phone'])) ?></span></span><span class="small muted"><?= (int)$ag['active'] ? 'connexion ' . h(ago($ag['last_login_at'])) : 'désactivé' ?></span></div>
+  <?php endforeach; ?>
+  <?php if (count($agents) > 30): ?><p class="small muted">… et <?= count($agents) - 30 ?> autres (voir son espace).</p><?php endif; ?>
+</section>
+
+<section class="card">
+  <h2>Téléphone de SMS</h2>
+  <?php if ($device && $device['token_hash']): ?>
+    <p><b><?= device_online($device) ? '✅ En ligne' : '⚠️ Hors ligne' ?></b> <span class="small muted">· dernier contact <?= h(ago($device['last_seen_at'])) ?><?= $device['battery'] !== null ? ' · batterie ' . (int)$device['battery'] . ' %' : '' ?><?= $device['app_version'] ? ' · app ' . h($device['app_version']) : '' ?></span></p>
+    <?= action_button('superadmin/d/' . $id . '/revoke_device', 'Dissocier le téléphone', 'btn ghost', 'Dissocier ce téléphone ? Le distributeur devra générer un nouveau code.') ?>
+  <?php else: ?>
+    <p class="muted">Aucun téléphone associé.</p>
+  <?php endif; ?>
+</section>
+
+<section class="card">
   <h2>Compte</h2>
+  <form method="post" action="<?= h(url('superadmin/d/' . $id . '/email')) ?>" class="row" style="margin-bottom:10px">
+    <?= csrf_field() ?>
+    <input type="email" name="email" value="<?= h($owner['email'] ?? '') ?>" placeholder="Email de connexion" required>
+    <button class="btn">Changer l'email</button>
+  </form>
+  <form method="post" action="<?= h(url('superadmin/d/' . $id . '/trial')) ?>" class="row" style="margin-bottom:10px">
+    <?= csrf_field() ?>
+    <select name="days" style="flex:1;margin:0"><?php foreach ([3, 7, 14, 30] as $n): ?><option value="<?= $n ?>">+<?= $n ?> jours (essai ou geste commercial)</option><?php endforeach; ?></select>
+    <button class="btn">Ajouter</button>
+  </form>
   <form method="post" action="<?= h(url('superadmin/d/' . $id . '/password')) ?>" class="row" style="margin-bottom:12px">
     <?= csrf_field() ?>
     <input type="text" name="password" placeholder="Nouveau mot de passe du distributeur" minlength="8">
@@ -86,3 +124,13 @@ $untilLocal = $d['paid_until'] ? fmt_dt($d['paid_until'], 'Y-m-d') : '';
   </form>
   <?= action_button('superadmin/d/' . $id . '/toggle', $d['status'] === 'active' ? 'Suspendre le compte' : 'Réactiver le compte', $d['status'] === 'active' ? 'btn danger' : 'btn primary', $d['status'] === 'active' ? 'Suspendre ce distributeur ? Lui et ses agents ne pourront plus se connecter. Ses données sont conservées.' : '') ?>
 </section>
+
+<details class="card sa-danger">
+  <summary><b>Supprimer ce distributeur</b></summary>
+  <p class="small">Supprime définitivement le compte, ses agents, ses opérations, ses demandes et ses SMS. <b>Impossible à annuler.</b> Pour arrêter temporairement, préférez « Suspendre ».</p>
+  <form method="post" action="<?= h(url('superadmin/d/' . $id . '/delete')) ?>" class="row">
+    <?= csrf_field() ?>
+    <input type="text" name="confirm" placeholder="Tapez « <?= h($d['name']) ?> » pour confirmer" required>
+    <button class="btn danger">Supprimer définitivement</button>
+  </form>
+</details>
