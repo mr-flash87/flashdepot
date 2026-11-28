@@ -1,12 +1,9 @@
 <?php /** @var array $agent @var float $due */
+$all = dist_numbers();
 $nums = [];
 foreach (array_intersect(agent_operators((int)$agent['id']), dist_operators()) as $op) {
-    $n = (string)dsetting('receive_' . $op);
-    if ($n === '' && $op === 'orange' && distributor()['phone'] && phone_operator(distributor()['phone']) !== 'moov') {
-        $n = (string)distributor()['phone'];
-    }
-    if ($n !== '') {
-        $nums[$op] = $n;
+    if (isset($all[$op])) {
+        $nums[$op] = $all[$op];
     }
 }
 $mine = array_values(agent_main_phones((int)$agent['id']));

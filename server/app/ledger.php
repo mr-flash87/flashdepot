@@ -82,8 +82,9 @@ function agent_main_phones(int $agentId): array
 function agent_operators(int $agentId): array
 {
     $mine = agent_main_phones($agentId);
-    $ops = array_values(array_filter(array_keys(mm_operators()), fn($op) => isset($mine[$op])));
-    return $ops ?: ['orange'];
+    // Seulement les opérateurs que le distributeur utilise aussi (il a un numéro pour chacun).
+    $ops = array_values(array_filter(dist_operators(), fn($op) => isset($mine[$op])));
+    return $ops ?: [dist_operators()[0]];
 }
 
 function agent_phones(int $agentId): array
@@ -338,10 +339,46 @@ function request_target_phone(array $req): string
     return reset($main) ?: ((agent_phones((int)$req['agent_id'])[0] ?? null) ?: (string)$req['login_phone']);
 }
 
+/** Numéros Mobile Money du distributeur par opérateur (réglage « Mes numéros »). */
+function dist_numbers(): array
+{
+    $out = [];
+    foreach (array_keys(mm_operators()) as $op) {
+        $n = (string)dsetting('receive_' . $op);
+        if ($n !== '') {
+            $out[$op] = $n;
+        }
+    }
+    // Comptes créés avant « Mes numéros » : le numéro du compte sert de numéro Orange (ou Moov selon le préfixe).
+    $p = (string)(distributor()['phone'] ?? '');
+    if ($p !== '') {
+        $op = phone_operator($p) ?? 'orange';
+        $out[$op] ??= $p;
+    }
+    return $out;
+}
+
+/** Distributeur à qui appartient un numéro (numéro du compte ou un de ses numéros Orange / Moov). */
+function dist_find_by_phone(?string $phone): ?array
+{
+    $k = phone_key($phone);
+    if ($k === null) {
+        return null;
+    }
+    return q_one('SELECT * FROM distributors WHERE phone = ? OR settings LIKE ? OR settings LIKE ? ORDER BY id LIMIT 1',
+        [$k, '%"receive_orange":"' . $k . '"%', '%"receive_moov":"' . $k . '"%']);
+}
+
 /** Opérateurs activés par le distributeur (Orange Money par défaut). */
 function dist_operators(): array
 {
     $ops = array_values(array_intersect(explode(',', (string)dsetting('operators', 'orange')), array_keys(mm_operators())));
+    foreach (array_keys(dist_numbers()) as $op) {
+        if (!in_array($op, $ops, true)) {
+            $ops[] = $op;
+        }
+    }
+    $ops = array_values(array_intersect(array_keys(mm_operators()), $ops)); // ordre : Orange, Moov
     return $ops ?: ['orange'];
 }
 

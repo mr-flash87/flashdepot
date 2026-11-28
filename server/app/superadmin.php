@@ -401,14 +401,15 @@ function register_route(string $method): void
             $error = 'Le mot de passe doit faire au moins 8 caractères.';
         } elseif (q_one('SELECT id FROM users WHERE LOWER(email) = ?', [$email])) {
             $error = 'Un compte existe déjà avec cet email. Connectez-vous.';
-        } elseif (q_one('SELECT id FROM distributors WHERE phone = ?', [$phone])) {
+        } elseif (dist_find_by_phone($phone)) {
             $error = 'Un compte existe déjà avec ce numéro. Connectez-vous ou contactez le support.';
         } else {
             $uid = db_tx(function () use ($name, $phone, $email, $pass) {
+                $op = phone_operator($phone) ?? 'orange';
                 $did = db_insert('distributors', [
                     'name' => $name, 'phone' => $phone, 'plan' => 'essai', 'status' => 'active',
                     'paid_until' => ts_plus(max(1, (int)setting('trial_days', '30')) * 86400),
-                    'settings' => json_encode([]), 'created_at' => now(),
+                    'settings' => json_encode(['receive_' . $op => $phone, 'operators' => $op]), 'created_at' => now(),
                 ]);
                 return db_insert('users', ['distributor_id' => $did, 'role' => 'owner', 'email' => $email, 'password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'created_at' => now()]);
             });
