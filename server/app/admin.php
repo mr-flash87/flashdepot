@@ -10,7 +10,28 @@ function admin_user(): ?array
         return null;
     }
     static $u = null;
-    return $u ??= q_one('SELECT id, email FROM users WHERE id = ?', [$_SESSION['uid']]);
+    $u ??= q_one('SELECT id, email, role, distributor_id FROM users WHERE id = ?', [$_SESSION['uid']]);
+    return $u ?: null;
+}
+
+/** Super-admin qui consulte l'espace d'un distributeur (assistance). */
+function admin_impersonating(): bool
+{
+    $u = admin_user();
+    return $u && $u['role'] === 'superadmin' && !empty($_SESSION['as_did']);
+}
+
+/** Actions autorisées quand l'abonnement a expiré (le reste est en lecture seule). */
+function admin_paywall(string $a, string $method): void
+{
+    if ($method !== 'POST' || dist_active(distributor()) || admin_impersonating()) {
+        return;
+    }
+    if (in_array($a, ['settings', 'push', 'subscription', 'logout'], true)) {
+        return;
+    }
+    flash('Votre abonnement a expiré : renouvelez-le pour continuer à valider des demandes et à enregistrer des opérations. Vos données sont conservées.', 'err');
+    redirect('admin/subscription');
 }
 
 function admin_page(string $view, string $title, array $vars = []): void
@@ -42,7 +63,8 @@ function admin_route(string $method, array $p): void
                 if ($u && password_verify((string)($_POST['password'] ?? ''), $u['password_hash'])) {
                     session_regenerate_id(true);
                     $_SESSION['uid'] = (int)$u['id'];
-                    redirect('admin');
+                    unset($_SESSION['as_did']);
+                    redirect($u['role'] === 'superadmin' ? 'superadmin' : 'admin');
                 }
                 login_failed('admin:' . $email);
                 $error = 'Email ou mot de passe incorrect.';
@@ -56,24 +78,54 @@ function admin_route(string $method, array $p): void
     if (!$user) {
         redirect('admin/login');
     }
+    if ($user['role'] === 'superadmin') {
+        if (empty($_SESSION['as_did'])) {
+            redirect('superadmin');
+        }
+        set_did((int)$_SESSION['as_did']);
+    } else {
+        set_did((int)$user['distributor_id']);
+    }
+    if (!distributor()) {
+        unset($_SESSION['uid'], $_SESSION['as_did']);
+        redirect('admin/login');
+    }
     if ($method === 'POST') {
         csrf_check();
     }
+    if (distributor()['status'] === 'suspended' && !admin_impersonating() && $a !== 'logout') {
+        view('layout_top', ['title' => 'Compte suspendu', 'area' => 'public']);
+        view('message', ['text' => 'Ce compte est suspendu. Contactez le support FlashDépôt' . (setting('support_whatsapp') ? ' sur WhatsApp au ' . setting('support_whatsapp') : '') . '. Vos données sont conservées.']);
+        view('layout_bottom', ['area' => 'public']);
+        return;
+    }
+    admin_paywall($a, $method);
 
     switch ($a) {
         case '':
             admin_page('admin_dashboard', 'Tableau de bord', [
-                'requests' => q_all("SELECT r.*, a.name AS agent_name FROM deposit_requests r JOIN agents a ON a.id = r.agent_id WHERE r.status IN ('pending','approved') ORDER BY r.created_at ASC LIMIT 20"),
-                'recent' => q_all('SELECT o.*, a.name AS agent_name FROM operations o LEFT JOIN agents a ON a.id = o.agent_id ORDER BY o.occurred_at DESC, o.id DESC LIMIT 12'),
-                'device' => q_one('SELECT * FROM devices WHERE active = 1 AND token_hash IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1'),
+                'requests' => q_all("SELECT r.*, a.name AS agent_name FROM deposit_requests r JOIN agents a ON a.id = r.agent_id WHERE r.distributor_id = ? AND r.status IN ('pending','approved') ORDER BY r.created_at ASC LIMIT 20", [did()]),
+                'recent' => q_all('SELECT o.*, a.name AS agent_name FROM operations o LEFT JOIN agents a ON a.id = o.agent_id WHERE o.distributor_id = ? ORDER BY o.occurred_at DESC, o.id DESC LIMIT 12', [did()]),
+                'device' => q_one('SELECT * FROM devices WHERE distributor_id = ? AND active = 1 AND token_hash IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1', [did()]),
                 'top' => array_slice(array_filter(agents_with_balance(), fn($r) => (float)$r['due'] > 0), 0, 8),
             ]);
             return;
 
         case 'logout':
             start_session();
+            if (admin_impersonating()) {
+                unset($_SESSION['as_did']); // le super-admin revient à son espace
+                redirect('superadmin');
+            }
             unset($_SESSION['uid']);
             redirect('admin/login');
+
+        case 'subscription':
+            admin_page('admin_subscription', 'Abonnement', [
+                'payments' => q_all('SELECT * FROM subscription_payments WHERE distributor_id = ? ORDER BY id DESC LIMIT 24', [did()]),
+                'agents_count' => (int)q_val('SELECT COUNT(*) FROM agents WHERE distributor_id = ? AND active = 1', [did()]),
+            ]);
+            return;
 
         case 'push':
             if ($method !== 'POST') {
@@ -87,8 +139,8 @@ function admin_route(string $method, array $p): void
                 'pending' => $s['pending_requests'],
                 'unassigned' => $s['unassigned'],
                 'review' => $s['review'],
-                'last_op' => (int)q_val('SELECT COALESCE(MAX(id),0) FROM operations'),
-                'last_req' => (int)q_val('SELECT COALESCE(MAX(id),0) FROM deposit_requests'),
+                'last_op' => (int)q_val('SELECT COALESCE(MAX(id),0) FROM operations WHERE distributor_id = ?', [did()]),
+                'last_req' => (int)q_val('SELECT COALESCE(MAX(id),0) FROM deposit_requests WHERE distributor_id = ?', [did()]),
             ]);
 
         case 'requests':
@@ -110,7 +162,7 @@ function admin_route(string $method, array $p): void
             }
             admin_page('admin_sms', 'SMS reçus', [
                 'test' => $test,
-                'rows' => q_all('SELECT * FROM sms_messages ORDER BY id DESC LIMIT 100'),
+                'rows' => q_all('SELECT * FROM sms_messages WHERE distributor_id = ? ORDER BY id DESC LIMIT 100', [did()]),
             ]);
             return;
 
@@ -175,7 +227,7 @@ function admin_requests(string $method, array $p): void
     }
 
     $filter = (string)($_GET['f'] ?? 'active');
-    $where = $filter === 'all' ? '1=1' : "r.status IN ('pending','approved')";
+    $where = 'r.distributor_id = ' . did() . ($filter === 'all' ? '' : " AND r.status IN ('pending','approved')");
     admin_page('admin_requests', 'Demandes de dépôt', [
         'filter' => $filter,
         'rows' => q_all("SELECT r.*, a.name AS agent_name, a.login_phone FROM deposit_requests r JOIN agents a ON a.id = r.agent_id WHERE $where ORDER BY CASE WHEN r.status IN ('pending','approved') THEN 0 ELSE 1 END, r.created_at " . ($filter === 'all' ? 'DESC' : 'ASC') . ' LIMIT 200'),
@@ -196,7 +248,7 @@ function admin_agent_form_save(?array $agent): array
     if ($login === null) {
         $errors[] = 'Le numéro de connexion doit avoir 8 chiffres.';
     } else {
-        $other = q_one('SELECT id, name FROM agents WHERE login_phone = ?', [$login]);
+        $other = q_one('SELECT id, name FROM agents WHERE login_phone = ? AND distributor_id = ?', [$login, did()]);
         if ($other && (!$agent || (int)$other['id'] !== (int)$agent['id'])) {
             $errors[] = 'Ce numéro de connexion est déjà utilisé par ' . $other['name'] . '.';
         }
@@ -214,7 +266,7 @@ function admin_agent_form_save(?array $agent): array
             $errors[] = 'Numéro invalide : ' . $ph;
             continue;
         }
-        $owner = q_one('SELECT a.id, a.name FROM agent_phones p JOIN agents a ON a.id = p.agent_id WHERE p.phone_key = ?', [$k]);
+        $owner = q_one('SELECT a.id, a.name FROM agent_phones p JOIN agents a ON a.id = p.agent_id WHERE p.phone_key = ? AND p.distributor_id = ?', [$k, did()]);
         if ($owner && (!$agent || (int)$owner['id'] !== (int)$agent['id'])) {
             $errors[] = 'Le numéro ' . fmt_phone($k) . ' appartient déjà à ' . $owner['name'] . '.';
         }
@@ -233,11 +285,11 @@ function admin_agent_form_save(?array $agent): array
     }
     $id = db_tx(function () use ($agent, $data, $login, $extra) {
         if ($agent) {
-            db_update('agents', $data, 'id = :id', ['id' => $agent['id']]);
+            db_update('agents', $data, 'id = :id AND distributor_id = :d', ['id' => $agent['id'], 'd' => did()]);
             $id = (int)$agent['id'];
-            q('DELETE FROM agent_phones WHERE agent_id = ?', [$id]);
+            q('DELETE FROM agent_phones WHERE agent_id = ? AND distributor_id = ?', [$id, did()]);
         } else {
-            $id = db_insert('agents', $data + ['active' => 1, 'created_at' => now()]);
+            $id = db_insert('agents', $data + ['distributor_id' => did(), 'active' => 1, 'created_at' => now()]);
         }
         // Le numéro de connexion est aussi son numéro Orange Money principal.
         agent_add_phone($id, $login);
@@ -246,7 +298,7 @@ function admin_agent_form_save(?array $agent): array
         }
         // Les opérations « à attribuer » de ces numéros reviennent à l'agent.
         foreach (agent_phones($id) as $k) {
-            foreach (q_all("SELECT id FROM operations WHERE status = 'unassigned' AND phone = ?", [$k]) as $o) {
+            foreach (q_all("SELECT id FROM operations WHERE status = 'unassigned' AND phone = ? AND distributor_id = ?", [$k, did()]) as $o) {
                 db_update('operations', ['agent_id' => $id, 'status' => 'ok'], 'id = :id', ['id' => $o['id']]);
                 request_link_deposit((int)$o['id']);
             }
@@ -262,7 +314,9 @@ function admin_agents(string $method, array $p): void
 
     if ($sub === 'new') {
         $errors = [];
-        if ($method === 'POST') {
+        if ($method === 'POST' && ($err = agent_limit_error())) {
+            $errors[] = $err;
+        } elseif ($method === 'POST') {
             $r = admin_agent_form_save(null);
             if (isset($r['id'])) {
                 flash('Agent créé. Donnez-lui son numéro et son code PIN pour se connecter.');
@@ -310,7 +364,11 @@ function admin_agents(string $method, array $p): void
                     flash(op_label($kinds[$act]) . ' de ' . fmt_amount($amount) . ' enregistré. Reste à payer : ' . fmt_amount(agent_balance((int)$agent['id'])) . '.');
                 }
             } elseif ($act === 'toggle') {
-                db_update('agents', ['active' => (int)$agent['active'] === 1 ? 0 : 1], 'id = :id', ['id' => $agent['id']]);
+                if ((int)$agent['active'] !== 1 && ($err = agent_limit_error())) {
+                    flash($err, 'err');
+                    redirect('admin/agents/' . $agent['id']);
+                }
+                db_update('agents', ['active' => (int)$agent['active'] === 1 ? 0 : 1], 'id = :id AND distributor_id = :d', ['id' => $agent['id'], 'd' => did()]);
                 flash((int)$agent['active'] === 1 ? 'Agent désactivé : il ne peut plus se connecter.' : 'Agent réactivé.');
             }
             redirect('admin/agents/' . $agent['id']);
@@ -320,7 +378,7 @@ function admin_agents(string $method, array $p): void
             'due' => agent_balance((int)$agent['id']),
             'phones' => agent_phones((int)$agent['id']),
             'ops' => agent_statement((int)$agent['id']),
-            'requests' => q_all("SELECT * FROM deposit_requests WHERE agent_id = ? ORDER BY created_at DESC LIMIT 20", [$agent['id']]),
+            'requests' => q_all("SELECT * FROM deposit_requests WHERE agent_id = ? AND distributor_id = ? ORDER BY created_at DESC LIMIT 20", [$agent['id'], did()]),
         ]);
         return;
     }
@@ -394,8 +452,8 @@ function admin_operations(string $method, array $p): void
     admin_page('admin_operations', 'Opérations', [
         'filter' => $f,
         'day' => $day,
-        'rows' => q_all("SELECT o.*, a.name AS agent_name FROM operations o LEFT JOIN agents a ON a.id = o.agent_id WHERE $where ORDER BY o.occurred_at DESC, o.id DESC LIMIT 300", $params),
-        'agents' => q_all('SELECT id, name FROM agents WHERE active = 1 ORDER BY name'),
+        'rows' => q_all("SELECT o.*, a.name AS agent_name FROM operations o LEFT JOIN agents a ON a.id = o.agent_id WHERE o.distributor_id = ? AND $where ORDER BY o.occurred_at DESC, o.id DESC LIMIT 300", array_merge([did()], $params)),
+        'agents' => q_all('SELECT id, name FROM agents WHERE distributor_id = ? AND active = 1 ORDER BY name', [did()]),
     ]);
 }
 
@@ -407,28 +465,28 @@ function admin_device($method, array $p): void
         $act = $p[0] ?? '';
         if ($act === 'pair') {
             $code = (string)random_int(100000, 999999);
-            $dev = q_one('SELECT * FROM devices WHERE active = 1 ORDER BY id DESC LIMIT 1');
+            $dev = q_one('SELECT * FROM devices WHERE distributor_id = ? AND active = 1 ORDER BY id DESC LIMIT 1', [did()]);
             $data = ['pair_code' => $code, 'pair_expires_at' => ts_plus(30 * 60)];
             if ($dev) {
                 db_update('devices', $data, 'id = :id', ['id' => $dev['id']]);
             } else {
-                db_insert('devices', $data + ['name' => 'Téléphone du distributeur', 'active' => 1, 'created_at' => now()]);
+                db_insert('devices', $data + ['distributor_id' => did(), 'name' => 'Téléphone du distributeur', 'active' => 1, 'created_at' => now()]);
             }
             flash('Code généré : saisissez-le dans l\'application dans les 30 minutes.');
         } elseif ($act === 'balance') {
             $amount = input_amount($_POST['balance'] ?? '');
             if ($amount !== null) {
-                q('UPDATE devices SET last_balance = ? WHERE active = 1', [$amount]);
+                q('UPDATE devices SET last_balance = ? WHERE active = 1 AND distributor_id = ?', [$amount, did()]);
                 flash('Solde Orange Money enregistré.');
             }
         } elseif ($act === 'revoke') {
-            q('UPDATE devices SET token_hash = NULL, pair_code = NULL WHERE active = 1');
+            q('UPDATE devices SET token_hash = NULL, pair_code = NULL WHERE active = 1 AND distributor_id = ?', [did()]);
             flash('Téléphone dissocié.');
         }
         redirect('admin/device');
     }
     admin_page('admin_device', 'Téléphone', [
-        'device' => q_one('SELECT * FROM devices WHERE active = 1 ORDER BY id DESC LIMIT 1'),
+        'device' => q_one('SELECT * FROM devices WHERE distributor_id = ? AND active = 1 ORDER BY id DESC LIMIT 1', [did()]),
     ]);
 }
 
@@ -439,14 +497,22 @@ function admin_settings(string $method, array $user): void
     $sub = $_POST['form'] ?? '';
     if ($method === 'POST') {
         if ($sub === 'general') {
-            setting_set('app_name', mb_substr(trim((string)($_POST['app_name'] ?? '')), 0, 60) ?: 'FlashDépôt');
-            setting_set('deposit_ussd', mb_substr(trim((string)($_POST['deposit_ussd'] ?? '')), 0, 100));
-            setting_set('balance_check', !empty($_POST['balance_check']) ? '1' : '0');
-            setting_set('min_request', (string)(int)(input_amount($_POST['min_request'] ?? '') ?? 0));
+            $name = mb_substr(trim((string)($_POST['dist_name'] ?? '')), 0, 120);
+            $phone = phone_key((string)($_POST['dist_phone'] ?? ''));
+            $taken = $phone ? q_one('SELECT id FROM distributors WHERE phone = ? AND id <> ?', [$phone, did()]) : null;
+            if ($taken) {
+                flash('Ce numéro est déjà utilisé par un autre compte distributeur.', 'err');
+                redirect('admin/settings');
+            }
+            db_update('distributors', ['name' => $name ?: distributor()['name'], 'phone' => $phone], 'id = :id', ['id' => did()]);
+            $GLOBALS['__dist'] = null;
+            dsetting_set('deposit_ussd', mb_substr(trim((string)($_POST['deposit_ussd'] ?? '')), 0, 100));
+            dsetting_set('balance_check', !empty($_POST['balance_check']) ? '1' : '0');
+            dsetting_set('min_request', (string)(int)(input_amount($_POST['min_request'] ?? '') ?? 0));
             flash('Réglages enregistrés.');
         } elseif ($sub === 'telegram') {
-            setting_set('tg_token', trim((string)($_POST['tg_token'] ?? '')));
-            setting_set('tg_chat_id', trim((string)($_POST['tg_chat_id'] ?? '')));
+            dsetting_set('tg_token', trim((string)($_POST['tg_token'] ?? '')));
+            dsetting_set('tg_chat_id', trim((string)($_POST['tg_chat_id'] ?? '')));
             if (!empty($_POST['test'])) {
                 $err = tg_send('✅ ' . app_name() . ' : les notifications Telegram fonctionnent.');
                 flash($err ? 'Telegram : ' . $err : 'Message de test envoyé sur Telegram.', $err ? 'err' : 'ok');
@@ -468,4 +534,18 @@ function admin_settings(string $method, array $user): void
         redirect('admin/settings');
     }
     admin_page('admin_settings', 'Réglages', ['user' => $user]);
+}
+
+/** Message d'erreur si la formule ne permet pas d'agent actif de plus, sinon null. */
+function agent_limit_error(): ?string
+{
+    $limit = plan_agent_limit(distributor());
+    if ($limit <= 0) {
+        return null;
+    }
+    $n = (int)q_val('SELECT COUNT(*) FROM agents WHERE distributor_id = ? AND active = 1', [did()]);
+    if ($n < $limit) {
+        return null;
+    }
+    return 'Votre formule ' . plan_label(distributor()['plan']) . ' permet ' . $limit . ' agents actifs. Passez à une formule supérieure (menu Abonnement) ou désactivez un agent.';
 }

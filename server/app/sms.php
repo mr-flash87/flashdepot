@@ -98,7 +98,9 @@ function sms_ingest(?array $device, string $sender, string $body, ?int $received
             return ['id' => (int)$existing['id'], 'status' => 'already_received', 'operation' => null];
         }
         $p = sms_parse($sender, $body);
+        $dist = $device['distributor_id'] ?? null; // null = téléphone de la plateforme (abonnements)
         $row = [
+            'distributor_id' => $dist,
             'device_id' => $device['id'] ?? null,
             'sender' => $sender,
             'body' => $body,
@@ -124,7 +126,9 @@ function sms_ingest(?array $device, string $sender, string $body, ?int $received
 
         // Anti-doublon : un même ID de transaction n'est compté qu'une fois.
         if ($p['txn'] && in_array($p['kind'], ['in', 'out'], true)) {
-            $dup = q_one("SELECT id FROM sms_messages WHERE txn_id = ? AND kind IN ('in','out') AND status IN ('ok','review','unassigned')", [$p['txn']]);
+            $dup = $dist === null
+                ? q_one("SELECT id FROM sms_messages WHERE txn_id = ? AND kind IN ('in','out') AND distributor_id IS NULL AND status IN ('ok','review','unassigned')", [$p['txn']])
+                : q_one("SELECT id FROM sms_messages WHERE txn_id = ? AND kind IN ('in','out') AND distributor_id = ? AND status IN ('ok','review','unassigned')", [$p['txn'], $dist]);
             if ($dup) {
                 $row['status'] = 'duplicate';
                 $row['note'] = 'Transaction déjà enregistrée (SMS #' . $dup['id'] . ')';
@@ -149,6 +153,12 @@ function sms_ingest(?array $device, string $sender, string $body, ?int $received
         $row['status'] = 'pending';
         $smsId = db_insert('sms_messages', $row);
         $sms = q_one('SELECT * FROM sms_messages WHERE id = ?', [$smsId]);
+        if ($dist === null) {
+            // Téléphone de la plateforme : l'argent reçu = paiement d'abonnement d'un distributeur.
+            $status = $p['kind'] === 'in' ? subscription_from_sms($sms, $balanceOk) : 'info';
+            db_update('sms_messages', ['status' => $status], 'id = :id', ['id' => $smsId]);
+            return ['id' => $smsId, 'status' => $status, 'operation' => null];
+        }
         $op = ledger_from_sms($sms, $balanceOk);
         db_update('sms_messages', ['status' => $op['status'], 'operation_id' => $op['id'], 'note' => $balanceOk ? null : 'Solde incohérent : à vérifier'], 'id = :id', ['id' => $smsId]);
         return ['id' => $smsId, 'status' => $op['status'], 'operation' => (int)$op['id']];
@@ -157,7 +167,8 @@ function sms_ingest(?array $device, string $sender, string $body, ?int $received
 
 function sms_balance_ok(?array $device, array $p): bool
 {
-    if ((string)setting('balance_check') !== '1' || !$device || $device['last_balance'] === null || $p['balance'] === null || $p['amount'] === null) {
+    $check = has_did() ? (string)dsetting('balance_check') : '1';
+    if ($check !== '1' || !$device || $device['last_balance'] === null || $p['balance'] === null || $p['amount'] === null) {
         return true;
     }
     $before = (float)$device['last_balance'];
@@ -172,4 +183,67 @@ function sms_balance_ok(?array $device, array $p): bool
         return $spent >= $amount - 1 && $spent <= $amount * 1.03 + 1;
     }
     return true;
+}
+
+/**
+ * Paiement d'abonnement reçu sur le numéro de la plateforme.
+ * Le distributeur est reconnu par son numéro ; le montant donne la formule et le nombre de mois
+ * (ex. 25 000 F = 1 mois Pro, 30 000 F = 3 mois Starter). Retourne le statut du SMS.
+ */
+function subscription_from_sms(array $sms, bool $balanceOk): string
+{
+    $amount = (float)$sms['amount'];
+    $d = $sms['phone'] ? q_one('SELECT * FROM distributors WHERE phone = ?', [phone_key($sms['phone'])]) : null;
+    $row = [
+        'distributor_id' => $d['id'] ?? null,
+        'amount' => $amount,
+        'months' => 0,
+        'plan' => null,
+        'source' => 'sms',
+        'phone' => $sms['phone'],
+        'txn_id' => $sms['txn_id'],
+        'status' => 'ok',
+        'note' => null,
+        'created_at' => now(),
+    ];
+    if (!$balanceOk) {
+        $row['status'] = 'review';
+        $row['note'] = 'Solde incohérent : à vérifier avant de prolonger';
+    } elseif (!$d) {
+        $row['status'] = 'unassigned';
+        $row['note'] = 'Numéro inconnu' . ($sms['counterpart'] ? ' (' . $sms['counterpart'] . ')' : '');
+    } else {
+        [$plan, $months] = subscription_plan_for($d, $amount);
+        if ($months < 1) {
+            $row['status'] = 'review';
+            $row['note'] = 'Montant insuffisant pour un mois';
+        } else {
+            $row['plan'] = $plan;
+            $row['months'] = $months;
+            dist_extend((int)$d['id'], $months, $plan);
+        }
+    }
+    db_insert('subscription_payments', $row);
+    return $row['status'] === 'ok' ? 'ok' : ($row['status'] === 'unassigned' ? 'unassigned' : 'review');
+}
+
+/** Formule et nombre de mois correspondant à un montant payé. */
+function subscription_plan_for(array $d, float $amount): array
+{
+    $plans = plans();
+    // Multiple exact du prix de la formule actuelle : on la prolonge.
+    if (isset($plans[$d['plan']]) && $plans[$d['plan']]['price'] > 0 && fmod($amount, (float)$plans[$d['plan']]['price']) == 0.0) {
+        return [$d['plan'], (int)($amount / $plans[$d['plan']]['price'])];
+    }
+    // Sinon multiple exact d'une autre formule : la plus chère qui correspond (changement de formule).
+    $byPrice = $plans;
+    uasort($byPrice, fn($a, $b) => $b['price'] <=> $a['price']);
+    foreach ($byPrice as $key => $p) {
+        if ($p['price'] > 0 && fmod($amount, (float)$p['price']) == 0.0) {
+            return [$key, (int)($amount / $p['price'])];
+        }
+    }
+    $current = isset($plans[$d['plan']]) ? $d['plan'] : 'starter';
+    $price = (float)$plans[$current]['price'];
+    return [$current, $price > 0 ? (int)floor($amount / $price) : 0];
 }

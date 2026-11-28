@@ -1,27 +1,29 @@
 <?php
 $area = $area ?? 'public';
-$hasApp = in_array($area, ['admin', 'agent'], true);
+$hasApp = in_array($area, ['admin', 'agent', 'superadmin'], true);
 ?>
 </main>
 </div>
 
 <?php if ($hasApp):
     // Reprend les onglets calculés par layout_top.php (même requête).
-    $tabsB = $area === 'admin'
-        ? [['/admin', 'admin', 'home', 'Accueil'], ['/admin/requests', 'admin/requests', 'inbox', 'Demandes'], ['/admin/agents', 'admin/agents', 'users', 'Agents'], ['/admin/operations', 'admin/operations', 'list', 'Opérations']]
-        : [['/agent', 'agent', 'home', 'Accueil'], ['/agent/demande', 'agent/demande', 'send', 'Demander'], ['/agent/releve', 'agent/releve', 'chart', 'Relevé']];
+    $tabsB = match ($area) {
+        'admin' => [['/admin', 'admin', 'home', 'Accueil'], ['/admin/requests', 'admin/requests', 'inbox', 'Demandes'], ['/admin/agents', 'admin/agents', 'users', 'Agents'], ['/admin/operations', 'admin/operations', 'list', 'Opérations']],
+        'superadmin' => [['/superadmin', 'superadmin', 'users', 'Distributeurs'], ['/superadmin/payments', 'superadmin/payments', 'wallet', 'Paiements'], ['/superadmin/settings', 'superadmin/settings', 'gear', 'Plateforme']],
+        default => [['/agent', 'agent', 'home', 'Accueil'], ['/agent/demande', 'agent/demande', 'send', 'Demander'], ['/agent/releve', 'agent/releve', 'chart', 'Relevé']],
+    };
     $relB = '/' . trim(substr(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/', strlen(base_path())), '/');
     $badges = [];
     if ($area === 'admin' && !empty($stats)) {
         $badges = ['/admin/requests' => $stats['pending_requests'], '/admin/operations' => $stats['unassigned'] + $stats['review']];
     }
-    $moreB = $area === 'admin'
-        ? [['admin/device', 'phone', 'Téléphone'], ['admin/sms', 'sms', 'SMS reçus'], ['admin/settings', 'gear', 'Réglages'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer'], ['agent/login', 'users', 'Page agents']]
-        : [['agent/compte', 'lock', 'Code PIN'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer']];
+    $moreB = $area === 'superadmin' ? [['#install', 'download', 'Installer']] : ($area === 'admin'
+        ? [['admin/device', 'phone', 'Téléphone'], ['admin/sms', 'sms', 'SMS reçus'], ['admin/settings', 'gear', 'Réglages'], ['admin/subscription', 'wallet', 'Abonnement'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer']]
+        : [['agent/compte', 'lock', 'Code PIN'], ['#notif', 'bell', 'Notifications'], ['#install', 'download', 'Installer']]);
 ?>
 <nav class="tabbar">
   <?php foreach ($tabsB as [$prefix, $href, $ic, $label]):
-      $on = in_array($prefix, ['/admin', '/agent'], true) ? $relB === $prefix : str_starts_with($relB, $prefix); ?>
+      $on = in_array($prefix, ['/admin', '/agent', '/superadmin'], true) ? $relB === $prefix : str_starts_with($relB, $prefix); ?>
     <a href="<?= h(url($href)) ?>"<?= $on ? ' class="on"' : '' ?>><span class="ti"><?= icon($ic, 22) ?><?php if (($badges[$prefix] ?? 0) > 0): ?><b class="count"><?= (int)$badges[$prefix] ?></b><?php endif; ?></span><span><?= h($label) ?></span></a>
   <?php endforeach; ?>
   <button type="button" data-open="more"><span class="ti"><?= icon('grid', 22) ?></span><span>Plus</span></button>

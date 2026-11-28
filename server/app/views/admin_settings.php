@@ -2,6 +2,7 @@
 <div class="page-head"><h1>Réglages</h1></div>
 
 <div class="menu">
+  <a href="<?= h(url('admin/subscription')) ?>"><?= icon('wallet', 22) ?><span><b>Abonnement</b><small><?= h(plan_label(distributor()['plan'])) ?><?= dist_days_left(distributor()) !== null ? ' · ' . max(0, (int)dist_days_left(distributor())) . ' jour(s) restant(s)' : '' ?></small></span><?= icon('chevron') ?></a>
   <a href="<?= h(url('admin/device')) ?>"><?= icon('phone', 22) ?><span><b>Téléphone</b><small>Associer le téléphone qui lit les SMS, solde Orange Money</small></span><?= icon('chevron') ?></a>
   <a href="<?= h(url('admin/sms')) ?>"><?= icon('sms', 22) ?><span><b>SMS reçus</b><small>Tous les SMS Orange Money transmis, tester la lecture</small></span><?= icon('chevron') ?></a>
   <a href="<?= h(url('agent/login')) ?>" target="_blank"><?= icon('users', 22) ?><span><b>Page des agents</b><small><?= h(abs_url('agent')) ?></small></span><?= icon('chevron') ?></a>
@@ -11,14 +12,17 @@
   <?= csrf_field() ?>
   <input type="hidden" name="form" value="general">
   <h2>Général</h2>
-  <label>Nom de l'application</label>
-  <input type="text" name="app_name" value="<?= h(app_name()) ?>">
+  <label>Nom de votre entreprise</label>
+  <input type="text" name="dist_name" value="<?= h(distributor()['name']) ?>" required>
+  <label>Votre numéro Orange Money (abonnement)</label>
+  <input type="tel" name="dist_phone" inputmode="numeric" value="<?= h(distributor()['phone']) ?>" placeholder="70 00 00 00">
+  <p class="small muted">Payez votre abonnement depuis ce numéro : il est reconnu et prolongé automatiquement.</p>
   <label>Code USSD de dépôt (facultatif)</label>
-  <input type="text" name="deposit_ussd" value="<?= h(setting('deposit_ussd')) ?>" placeholder="*144*…*{number}*{amount}#" class="mono">
+  <input type="text" name="deposit_ussd" value="<?= h(dsetting('deposit_ussd')) ?>" placeholder="*144*…*{number}*{amount}#" class="mono">
   <p class="small muted">Affiche un bouton « Composer » sur chaque demande. <code>{number}</code> = numéro de l'agent, <code>{amount}</code> = montant. Vous saisissez toujours votre code secret vous-même.</p>
   <label>Montant minimum d'une demande</label>
-  <input type="text" name="min_request" inputmode="numeric" value="<?= h(setting('min_request')) ?>">
-  <label class="check"><input type="checkbox" name="balance_check" value="1" <?= setting('balance_check') === '1' ? 'checked' : '' ?>> Contrôle du solde contre les faux SMS (recommandé)</label>
+  <input type="text" name="min_request" inputmode="numeric" value="<?= h(dsetting('min_request')) ?>">
+  <label class="check"><input type="checkbox" name="balance_check" value="1" <?= dsetting('balance_check') === '1' ? 'checked' : '' ?>> Contrôle du solde contre les faux SMS (recommandé)</label>
   <button class="btn primary">Enregistrer</button>
 </form>
 
@@ -30,9 +34,9 @@
     1) Dans Telegram, parlez à <b>@BotFather</b>, envoyez <code>/newbot</code> et copiez le jeton.
     2) Envoyez un message à votre bot, puis ouvrez <span class="mono">api.telegram.org/bot&lt;jeton&gt;/getUpdates</span> pour lire votre « chat id ».</p>
   <label>Jeton du bot</label>
-  <input type="text" name="tg_token" value="<?= h(setting('tg_token')) ?>" class="mono" autocomplete="off">
+  <input type="text" name="tg_token" value="<?= h(dsetting('tg_token')) ?>" class="mono" autocomplete="off">
   <label>Chat id</label>
-  <input type="text" name="tg_chat_id" value="<?= h(setting('tg_chat_id')) ?>" class="mono">
+  <input type="text" name="tg_chat_id" value="<?= h(dsetting('tg_chat_id')) ?>" class="mono">
   <div class="row">
     <button class="btn primary">Enregistrer</button>
     <button class="btn" name="test" value="1">Enregistrer et tester</button>

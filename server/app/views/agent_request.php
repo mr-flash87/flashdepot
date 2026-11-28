@@ -1,5 +1,5 @@
 <?php /** @var array $agent @var float $due @var array $requests */
-$min = (float)setting('min_request', '1000');
+$min = (float)dsetting('min_request', '1000');
 ?>
 <div class="page-head"><div><a class="back" href="<?= h(url('agent')) ?>">← Accueil</a><h1>Demander un dépôt</h1></div></div>
 

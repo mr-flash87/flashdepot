@@ -35,6 +35,9 @@
     <?php endif; ?>
     <button class="btn primary big">Se connecter</button>
   </form>
+  <?php if ($isAdmin && setting('registrations_open') === '1'): ?>
+    <p class="center small">Pas encore de compte ? <a href="<?= h(url('inscription')) ?>"><b>Créer un compte distributeur</b></a></p>
+  <?php endif; ?>
 </div>
 </body>
 </html>

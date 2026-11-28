@@ -97,7 +97,7 @@ function db_tx(callable $fn)
     }
 }
 
-/** Schéma compatible MySQL et SQLite. */
+/** Schéma compatible MySQL et SQLite (installation neuve : structure finale multi-distributeurs). */
 function db_schema(string $driver): array
 {
     $pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY';
@@ -107,9 +107,24 @@ function db_schema(string $driver): array
     $dt = $driver === 'sqlite' ? 'TEXT' : 'DATETIME';
 
     $t = [];
-    // Distributeur (administrateur)
+    // Distributeurs (clients de la plateforme)
+    $t[] = "CREATE TABLE IF NOT EXISTS distributors (
+        id $pk,
+        name VARCHAR(190) NOT NULL,
+        phone VARCHAR(12) NULL,
+        plan VARCHAR(20) NOT NULL DEFAULT 'starter',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        paid_until $dt NULL,
+        settings $text NULL,
+        notes VARCHAR(500) NULL,
+        created_at $dt NOT NULL
+    )$engine";
+    $t[] = "CREATE INDEX idx_dist_phone ON distributors (phone)";
+    // Comptes : role = owner (distributeur) ou superadmin (propriétaire de la plateforme)
     $t[] = "CREATE TABLE IF NOT EXISTS users (
         id $pk,
+        distributor_id $fk NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'owner',
         email VARCHAR(190) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
         created_at $dt NOT NULL
@@ -118,11 +133,12 @@ function db_schema(string $driver): array
         name VARCHAR(100) NOT NULL PRIMARY KEY,
         value $text
     )$engine";
-    // Agents Orange Money
+    // Agents Orange Money (chaque distributeur a les siens)
     $t[] = "CREATE TABLE IF NOT EXISTS agents (
         id $pk,
+        distributor_id $fk NOT NULL,
         name VARCHAR(190) NOT NULL,
-        login_phone VARCHAR(12) NOT NULL UNIQUE,
+        login_phone VARCHAR(12) NOT NULL,
         pin_hash VARCHAR(255) NULL,
         location VARCHAR(190) NULL,
         notes VARCHAR(500) NULL,
@@ -130,17 +146,22 @@ function db_schema(string $driver): array
         last_login_at $dt NULL,
         created_at $dt NOT NULL
     )$engine";
+    $t[] = "CREATE UNIQUE INDEX uq_agent_login ON agents (distributor_id, login_phone)";
+    $t[] = "CREATE INDEX idx_agent_phone ON agents (login_phone)";
     // Numéros Orange Money d'un agent (pour reconnaître ses dépôts et remboursements)
     $t[] = "CREATE TABLE IF NOT EXISTS agent_phones (
         id $pk,
+        distributor_id $fk NOT NULL,
         agent_id $fk NOT NULL,
-        phone_key VARCHAR(12) NOT NULL UNIQUE,
+        phone_key VARCHAR(12) NOT NULL,
         created_at $dt NOT NULL
     )$engine";
+    $t[] = "CREATE UNIQUE INDEX uq_aphone ON agent_phones (distributor_id, phone_key)";
     $t[] = "CREATE INDEX idx_aphone_agent ON agent_phones (agent_id)";
     // Demandes de dépôt faites par les agents
     $t[] = "CREATE TABLE IF NOT EXISTS deposit_requests (
         id $pk,
+        distributor_id $fk NOT NULL,
         reference VARCHAR(20) NOT NULL UNIQUE,
         agent_id $fk NOT NULL,
         amount DECIMAL(14,2) NOT NULL,
@@ -152,10 +173,11 @@ function db_schema(string $driver): array
         decided_at $dt NULL,
         sent_at $dt NULL
     )$engine";
-    $t[] = "CREATE INDEX idx_req_status ON deposit_requests (status, agent_id)";
+    $t[] = "CREATE INDEX idx_req_status ON deposit_requests (distributor_id, status, agent_id)";
     // Grand livre : chaque dépôt (dette +) et chaque remboursement (dette -)
     $t[] = "CREATE TABLE IF NOT EXISTS operations (
         id $pk,
+        distributor_id $fk NOT NULL,
         agent_id $fk NULL,
         kind VARCHAR(20) NOT NULL,
         amount DECIMAL(14,2) NOT NULL,
@@ -172,11 +194,12 @@ function db_schema(string $driver): array
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE INDEX idx_op_agent ON operations (agent_id, status, occurred_at)";
-    $t[] = "CREATE INDEX idx_op_status ON operations (status, occurred_at)";
+    $t[] = "CREATE INDEX idx_op_dist ON operations (distributor_id, status, occurred_at)";
     $t[] = "CREATE INDEX idx_op_txn ON operations (txn_id)";
-    // Téléphone Android qui lit les SMS de la SIM du distributeur
+    // Téléphones Android qui lisent les SMS (distributor_id NULL = téléphone de la plateforme : abonnements)
     $t[] = "CREATE TABLE IF NOT EXISTS devices (
         id $pk,
+        distributor_id $fk NULL,
         name VARCHAR(190) NOT NULL,
         token_hash CHAR(64) NULL UNIQUE,
         pair_code VARCHAR(10) NULL,
@@ -191,6 +214,7 @@ function db_schema(string $driver): array
     )$engine";
     $t[] = "CREATE TABLE IF NOT EXISTS sms_messages (
         id $pk,
+        distributor_id $fk NULL,
         device_id $fk NULL,
         sender VARCHAR(60) NOT NULL,
         body $text NOT NULL,
@@ -208,8 +232,10 @@ function db_schema(string $driver): array
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE INDEX idx_sms_txn ON sms_messages (txn_id)";
+    $t[] = "CREATE INDEX idx_sms_dist ON sms_messages (distributor_id, id)";
     $t[] = "CREATE TABLE IF NOT EXISTS push_subscriptions (
         id $pk,
+        distributor_id $fk NULL,
         user_id $fk NULL,
         agent_id $fk NULL,
         endpoint VARCHAR(500) NOT NULL,
@@ -220,6 +246,22 @@ function db_schema(string $driver): array
         created_at $dt NOT NULL
     )$engine";
     $t[] = "CREATE INDEX idx_push_agent ON push_subscriptions (agent_id)";
+    $t[] = "CREATE INDEX idx_push_dist ON push_subscriptions (distributor_id)";
+    // Paiements d'abonnement reçus par la plateforme
+    $t[] = "CREATE TABLE IF NOT EXISTS subscription_payments (
+        id $pk,
+        distributor_id $fk NULL,
+        amount DECIMAL(14,2) NOT NULL,
+        months INT NOT NULL DEFAULT 0,
+        plan VARCHAR(20) NULL,
+        source VARCHAR(20) NOT NULL DEFAULT 'manual',
+        phone VARCHAR(20) NULL,
+        txn_id VARCHAR(100) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'ok',
+        note VARCHAR(255) NULL,
+        created_at $dt NOT NULL
+    )$engine";
+    $t[] = "CREATE INDEX idx_subpay_dist ON subscription_payments (distributor_id, created_at)";
     $t[] = "CREATE TABLE IF NOT EXISTS login_attempts (
         id $pk,
         ip VARCHAR(64) NOT NULL,
@@ -244,7 +286,7 @@ function db_install_schema(PDO $pdo, string $driver): void
 }
 
 /** Version du schéma : les changements faits après l'installation sont appliqués automatiquement. */
-const SCHEMA_VERSION = 2; // 2 : notifications push
+const SCHEMA_VERSION = 3; // 2 : notifications push ; 3 : plusieurs distributeurs
 
 function db_add_column(string $table, string $column, string $mysqlType, string $sqliteType): void
 {
@@ -255,12 +297,132 @@ function db_add_column(string $table, string $column, string $mysqlType, string 
     }
 }
 
+/** Retire la contrainte UNIQUE d'une colonne (elle devient unique par distributeur). */
+function db_drop_unique(string $table, string $column): void
+{
+    $pdo = db();
+    if (db_driver() === 'sqlite') {
+        $sql = (string)$pdo->query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = " . $pdo->quote($table))->fetchColumn();
+        $rx = '/(' . preg_quote($column, '/') . '\s+VARCHAR\(\d+\)\s+NOT NULL)\s+UNIQUE/i';
+        if (!preg_match($rx, $sql)) {
+            return;
+        }
+        $new = preg_replace($rx, '$1', $sql);
+        $new = preg_replace('/CREATE TABLE\s+(IF NOT EXISTS\s+)?"?' . preg_quote($table, '/') . '"?/i', 'CREATE TABLE ' . $table . '_new', $new, 1);
+        $cols = implode(',', array_map(fn($c) => $c['name'], $pdo->query('PRAGMA table_info(' . $table . ')')->fetchAll()));
+        $indexes = $pdo->query("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = " . $pdo->quote($table) . ' AND sql IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN);
+        $pdo->exec($new);
+        $pdo->exec("INSERT INTO {$table}_new ($cols) SELECT $cols FROM $table");
+        $pdo->exec("DROP TABLE $table");
+        $pdo->exec("ALTER TABLE {$table}_new RENAME TO $table");
+        foreach ($indexes as $ix) {
+            try {
+                $pdo->exec($ix);
+            } catch (PDOException $e) {
+            }
+        }
+        return;
+    }
+    // Seulement l'ancien index UNIQUE sur cette seule colonne (pas les index composés).
+    $keys = [];
+    foreach ($pdo->query('SHOW INDEX FROM ' . $table)->fetchAll() as $ix) {
+        $keys[$ix['Key_name']]['cols'][] = $ix['Column_name'];
+        $keys[$ix['Key_name']]['unique'] = (int)$ix['Non_unique'] === 0;
+    }
+    foreach ($keys as $name => $k) {
+        if ($name !== 'PRIMARY' && $k['unique'] && $k['cols'] === [$column]) {
+            try {
+                $pdo->exec('ALTER TABLE ' . $table . ' DROP INDEX `' . str_replace('`', '', $name) . '`');
+            } catch (PDOException $e) {
+            }
+        }
+    }
+}
+
 function db_migrate(): void
 {
     $v = (int)setting('schema_version', '0');
     if ($v >= SCHEMA_VERSION) {
         return;
     }
-    db_install_schema(db(), db_driver());
+    $pdo = db();
+    if ($v < 3) {
+        // Ajoute d'abord les colonnes : les index du schéma final en dépendent.
+        $fkM = 'INT UNSIGNED NULL';
+        foreach (['agents', 'agent_phones', 'deposit_requests', 'operations', 'devices', 'sms_messages', 'push_subscriptions', 'users'] as $tbl) {
+            try {
+                $pdo->query("SELECT 1 FROM $tbl LIMIT 1");
+                db_add_column($tbl, 'distributor_id', $fkM, 'INTEGER NULL');
+            } catch (PDOException $e) {
+                // table absente : elle sera créée par le schéma
+            }
+        }
+        db_add_column('users', 'role', "VARCHAR(20) NOT NULL DEFAULT 'owner'", "TEXT NOT NULL DEFAULT 'owner'");
+    }
+    db_install_schema($pdo, db_driver());
+    if ($v >= 1 && $v < 3) {
+        db_migrate_to_multi();
+    }
     setting_set('schema_version', (string)SCHEMA_VERSION);
+}
+
+/**
+ * Passage à plusieurs distributeurs : tout ce qui existe (agents, opérations, demandes, téléphone,
+ * SMS, réglages) devient le distributeur n°1. Le compte existant reste son compte, rien n'est perdu.
+ */
+function db_migrate_to_multi(): void
+{
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $did = (int)q_val('SELECT MIN(id) FROM distributors');
+        if (!$did) {
+            $owner = q_one("SELECT * FROM users WHERE role = 'owner' OR role IS NULL ORDER BY id LIMIT 1");
+            $settings = [];
+            foreach (['deposit_ussd', 'balance_check', 'min_request', 'tg_token', 'tg_chat_id'] as $k) {
+                $val = q_val('SELECT value FROM settings WHERE name = ?', [$k]);
+                if ($val !== null) {
+                    $settings[$k] = $val;
+                }
+            }
+            $did = db_insert('distributors', [
+                'name' => (function () {
+                    $n = trim((string)q_val("SELECT value FROM settings WHERE name = 'app_name'"));
+                    return $n !== '' && $n !== 'FlashDépôt' ? $n : 'Distributeur principal';
+                })(),
+                'phone' => null,
+                'plan' => 'offert', // premier client : gratuit, sans date de fin (modifiable par le super-admin)
+                'status' => 'active',
+                'paid_until' => null,
+                'settings' => json_encode($settings, JSON_UNESCAPED_UNICODE),
+                'notes' => 'Compte créé automatiquement à partir des données existantes' . ($owner ? ' (' . $owner['email'] . ')' : ''),
+                'created_at' => (string)(q_val('SELECT MIN(created_at) FROM users') ?: now()),
+            ]);
+        }
+        foreach (['agents', 'agent_phones', 'deposit_requests', 'operations', 'devices', 'sms_messages'] as $tbl) {
+            q("UPDATE $tbl SET distributor_id = ? WHERE distributor_id IS NULL", [$did]);
+        }
+        q("UPDATE users SET distributor_id = ?, role = 'owner' WHERE distributor_id IS NULL AND (role IS NULL OR role <> 'superadmin')", [$did]);
+        q('UPDATE push_subscriptions SET distributor_id = ? WHERE distributor_id IS NULL', [$did]);
+        // L'ancien nom de l'application était celui du distributeur : la plateforme reprend « FlashDépôt ».
+        q("DELETE FROM settings WHERE name = 'app_name'");
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    // Unicité par distributeur (et non plus sur toute la plateforme).
+    db_drop_unique('agents', 'login_phone');
+    db_drop_unique('agent_phones', 'phone_key');
+    foreach ([
+        'CREATE UNIQUE INDEX uq_agent_login ON agents (distributor_id, login_phone)',
+        'CREATE INDEX idx_agent_phone ON agents (login_phone)',
+        'CREATE UNIQUE INDEX uq_aphone ON agent_phones (distributor_id, phone_key)',
+        'CREATE INDEX idx_aphone_agent ON agent_phones (agent_id)',
+    ] as $ix) {
+        try {
+            $pdo->exec($ix);
+        } catch (PDOException $e) {
+        }
+    }
 }

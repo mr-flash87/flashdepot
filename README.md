@@ -60,6 +60,20 @@ et mettez-la dans les secrets `ANDROID_KEYSTORE_B64` (fichier .jks en base64, al
 **Agent** (`/agent`) : connexion avec son numéro et son code PIN (ce n'est **pas** son code secret Orange Money).
 Il voit sa dette, demande un dépôt, suit ses demandes et son relevé.
 
+## Plateforme multi-distributeurs
+
+FlashDépôt accueille plusieurs distributeurs. Chacun a son espace, ses agents, son téléphone et ses réglages, et ne voit que ses propres données.
+
+- **Inscription** : `https://votre-site/inscription` donne un essai gratuit (30 jours par défaut).
+- **Super-admin** (propriétaire de la plateforme) : `https://votre-site/superadmin`.
+  - Première fois : `/superadmin/setup`, avec la **clé du serveur**, c'est-à-dire le mot de passe MySQL de `config.php`.
+  - On y trouve : la liste des distributeurs, le revenu mensuel, la prolongation ou la suspension d'un compte, l'ouverture de l'espace d'un distributeur (assistance), et les réglages de la plateforme (formules, prix, nombre d'agents, durée d'essai, numéro de paiement).
+- **Abonnements payés par Orange Money** :
+  1. Associez l'application FlashDépôt sur le téléphone de votre numéro de paiement (Plateforme → Téléphone de la plateforme).
+  2. Chaque paiement reçu depuis le numéro d'un distributeur prolonge son abonnement automatiquement. Le montant donne la formule et le nombre de mois.
+- **Abonnement expiré** : l'espace passe en lecture seule. Les SMS continuent d'être enregistrés et aucune donnée n'est perdue.
+- **Mise à jour d'une installation existante** : les données présentes (agents, opérations, demandes, téléphone, réglages) deviennent automatiquement le distributeur n°1, en formule « Offert ». Le compte existant reste le même.
+
 ## Sécurité
 
 - **Expéditeur** : seuls les SMS d'Orange Money sont pris en compte.

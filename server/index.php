@@ -6,6 +6,7 @@ require APP_DIR . '/ui.php';
 require APP_DIR . '/api.php';
 require APP_DIR . '/admin.php';
 require APP_DIR . '/agent.php';
+require APP_DIR . '/superadmin.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -56,6 +57,12 @@ try {
             break;
         case 'agent':
             agent_route($method, array_slice($parts, 1));
+            break;
+        case 'superadmin':
+            superadmin_route($method, array_slice($parts, 1));
+            break;
+        case 'inscription':
+            register_route($method);
             break;
         default:
             http_response_code(404);

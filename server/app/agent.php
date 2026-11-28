@@ -9,8 +9,13 @@ function agent_user(): ?array
     if (empty($_SESSION['agent_id'])) {
         return null;
     }
-    $a = agent_find((int)$_SESSION['agent_id']);
+    $a = q_one('SELECT * FROM agents WHERE id = ?', [(int)$_SESSION['agent_id']]);
     if (!$a || (int)$a['active'] !== 1) {
+        unset($_SESSION['agent_id']);
+        return null;
+    }
+    set_did((int)$a['distributor_id']); // l'agent ne voit que les données de son distributeur
+    if (!distributor() || distributor()['status'] === 'suspended') {
         unset($_SESSION['agent_id']);
         return null;
     }
@@ -32,8 +37,18 @@ function agent_route(string $method, array $p): void
             if (login_blocked('agent:' . $phone)) {
                 $error = 'Trop d\'essais. Réessayez dans 15 minutes.';
             } else {
-                $ag = $phone !== '' ? q_one('SELECT * FROM agents WHERE login_phone = ?', [$phone]) : null;
-                if ($ag && (int)$ag['active'] === 1 && $ag['pin_hash'] && password_verify(preg_replace('/\D+/', '', (string)($_POST['pin'] ?? '')), $ag['pin_hash'])) {
+                // Un même numéro peut travailler avec plusieurs distributeurs : le code PIN désigne le bon compte.
+                $pin = preg_replace('/\D+/', '', (string)($_POST['pin'] ?? ''));
+                $ag = null;
+                $found = $phone !== '' ? q_all('SELECT * FROM agents WHERE login_phone = ? ORDER BY active DESC, id', [$phone]) : [];
+                foreach ($found as $cand) {
+                    if ($cand['pin_hash'] && password_verify($pin, $cand['pin_hash'])) {
+                        $ag = $cand;
+                        break;
+                    }
+                }
+                $ag ??= $found[0] ?? null;
+                if ($ag && (int)$ag['active'] === 1 && $ag['pin_hash'] && password_verify($pin, $ag['pin_hash'])) {
                     session_regenerate_id(true);
                     $_SESSION['agent_id'] = (int)$ag['id'];
                     db_update('agents', ['last_login_at' => now()], 'id = :id', ['id' => $ag['id']]);
@@ -97,8 +112,12 @@ function agent_route(string $method, array $p): void
                     flash($n ? 'Demande annulée.' : 'Cette demande ne peut plus être annulée.', $n ? 'ok' : 'err');
                     redirect('agent');
                 }
+                if (!dist_active(distributor())) {
+                    flash('Les demandes sont momentanément indisponibles. Contactez votre distributeur.', 'err');
+                    redirect('agent/demande');
+                }
                 $amount = input_amount($_POST['amount'] ?? '');
-                $min = (float)setting('min_request', '1000');
+                $min = (float)dsetting('min_request', '1000');
                 $open = (int)q_val("SELECT COUNT(*) FROM deposit_requests WHERE agent_id = ? AND status = 'pending'", [$agent['id']]);
                 if (!$amount || $amount < $min) {
                     flash('Montant invalide (minimum ' . fmt_amount($min) . ').', 'err');

@@ -54,7 +54,7 @@ function badge(string $s, string $label): string
 
 function agent_find(int $id): ?array
 {
-    return q_one('SELECT * FROM agents WHERE id = ?', [$id]);
+    return q_one('SELECT * FROM agents WHERE id = ? AND distributor_id = ?', [$id, did()]);
 }
 
 function agent_by_phone(?string $phone): ?array
@@ -63,12 +63,12 @@ function agent_by_phone(?string $phone): ?array
     if ($k === null) {
         return null;
     }
-    return q_one('SELECT a.* FROM agents a JOIN agent_phones p ON p.agent_id = a.id WHERE p.phone_key = ?', [$k]);
+    return q_one('SELECT a.* FROM agents a JOIN agent_phones p ON p.agent_id = a.id WHERE p.phone_key = ? AND p.distributor_id = ?', [$k, did()]);
 }
 
 function agent_phones(int $agentId): array
 {
-    return array_column(q_all('SELECT phone_key FROM agent_phones WHERE agent_id = ? ORDER BY id', [$agentId]), 'phone_key');
+    return array_column(q_all('SELECT phone_key FROM agent_phones WHERE agent_id = ? AND distributor_id = ? ORDER BY id', [$agentId, did()]), 'phone_key');
 }
 
 /** Ajoute un numéro à un agent. Retourne un message d'erreur ou null. */
@@ -78,12 +78,12 @@ function agent_add_phone(int $agentId, string $phone): ?string
     if ($k === null) {
         return 'Numéro invalide (8 chiffres attendus).';
     }
-    $owner = q_one('SELECT a.id, a.name FROM agent_phones p JOIN agents a ON a.id = p.agent_id WHERE p.phone_key = ?', [$k]);
+    $owner = q_one('SELECT a.id, a.name FROM agent_phones p JOIN agents a ON a.id = p.agent_id WHERE p.phone_key = ? AND p.distributor_id = ?', [$k, did()]);
     if ($owner && (int)$owner['id'] !== $agentId) {
         return 'Le numéro ' . fmt_phone($k) . ' appartient déjà à ' . $owner['name'] . '.';
     }
     if (!$owner) {
-        db_insert('agent_phones', ['agent_id' => $agentId, 'phone_key' => $k, 'created_at' => now()]);
+        db_insert('agent_phones', ['distributor_id' => did(), 'agent_id' => $agentId, 'phone_key' => $k, 'created_at' => now()]);
     }
     return null;
 }
@@ -98,18 +98,18 @@ function balance_sql(string $alias = 'o'): string
 
 function agent_balance(int $agentId): float
 {
-    return (float)q_val('SELECT ' . balance_sql() . ' FROM operations o WHERE o.agent_id = ?', [$agentId]);
+    return (float)q_val('SELECT ' . balance_sql() . ' FROM operations o WHERE o.agent_id = ? AND o.distributor_id = ?', [$agentId, did()]);
 }
 
 /** Liste des agents avec leur solde dû et leur dernière opération. */
 function agents_with_balance(string $search = '', string $order = 'due'): array
 {
-    $params = [];
-    $where = '1=1';
+    $params = [did()];
+    $where = 'a.distributor_id = ?';
     if ($search !== '') {
-        $where = '(a.name LIKE ? OR a.login_phone LIKE ? OR a.location LIKE ? OR a.id IN (SELECT agent_id FROM agent_phones WHERE phone_key LIKE ?))';
+        $where .= ' AND (a.name LIKE ? OR a.login_phone LIKE ? OR a.location LIKE ? OR a.id IN (SELECT agent_id FROM agent_phones WHERE phone_key LIKE ?))';
         $like = '%' . $search . '%';
-        $params = [$like, $like, $like, $like];
+        array_push($params, $like, $like, $like, $like);
     }
     $orderSql = $order === 'name' ? 'a.name ASC' : 'due DESC, a.name ASC';
     return q_all(
@@ -123,7 +123,7 @@ function agents_with_balance(string $search = '', string $order = 'due'): array
 /** Relevé d'un agent : opérations (plus récentes d'abord) avec le solde après chacune. */
 function agent_statement(int $agentId, int $limit = 200): array
 {
-    $ops = q_all('SELECT * FROM operations WHERE agent_id = ? ORDER BY occurred_at ASC, id ASC', [$agentId]);
+    $ops = q_all('SELECT * FROM operations WHERE agent_id = ? AND distributor_id = ? ORDER BY occurred_at ASC, id ASC', [$agentId, did()]);
     $run = 0.0;
     foreach ($ops as &$o) {
         if ($o['status'] === 'ok') {
@@ -139,12 +139,13 @@ function agent_statement(int $agentId, int $limit = 200): array
 
 function op_find(int $id): ?array
 {
-    return q_one('SELECT o.*, a.name AS agent_name FROM operations o LEFT JOIN agents a ON a.id = o.agent_id WHERE o.id = ?', [$id]);
+    return q_one('SELECT o.*, a.name AS agent_name FROM operations o LEFT JOIN agents a ON a.id = o.agent_id WHERE o.id = ? AND o.distributor_id = ?', [$id, did()]);
 }
 
 function op_create(array $data): int
 {
     $data += [
+        'distributor_id' => did(),
         'agent_id' => null, 'status' => 'ok', 'source' => 'manual', 'phone' => null, 'counterpart' => null,
         'txn_id' => null, 'sms_id' => null, 'request_id' => null, 'note' => null, 'created_by' => null,
         'occurred_at' => now(), 'created_at' => now(),
@@ -164,8 +165,8 @@ function ledger_from_sms(array $sms, bool $balanceOk): array
     if ($agent && $kind === 'depot') {
         $manual = q_one(
             "SELECT * FROM operations WHERE agent_id = ? AND kind = 'depot' AND status = 'ok' AND sms_id IS NULL AND source = 'manual'
-             AND amount = ? AND occurred_at >= ? ORDER BY occurred_at ASC LIMIT 1",
-            [$agent['id'], $amount, gmdate('Y-m-d H:i:s', time() - 2 * 86400)]
+             AND amount = ? AND occurred_at >= ? AND distributor_id = ? ORDER BY occurred_at ASC LIMIT 1",
+            [$agent['id'], $amount, gmdate('Y-m-d H:i:s', time() - 2 * 86400), did()]
         );
         if ($manual) {
             db_update('operations', [
@@ -203,9 +204,9 @@ function request_link_deposit(int $opId): void
         return;
     }
     $req = q_one(
-        "SELECT * FROM deposit_requests WHERE agent_id = ? AND status IN ('approved','pending') AND operation_id IS NULL AND amount = ?
+        "SELECT * FROM deposit_requests WHERE agent_id = ? AND distributor_id = ? AND status IN ('approved','pending') AND operation_id IS NULL AND amount = ?
          ORDER BY CASE WHEN status = 'approved' THEN 0 ELSE 1 END, created_at ASC LIMIT 1",
-        [$op['agent_id'], $op['amount']]
+        [$op['agent_id'], did(), $op['amount']]
     );
     if (!$req) {
         return;
@@ -241,7 +242,7 @@ function op_assign(int $opId, int $agentId, bool $rememberPhone): ?string
     request_link_deposit($opId);
     // Les autres opérations du même numéro encore « à attribuer » suivent.
     if ($rememberPhone && $op['phone']) {
-        foreach (q_all("SELECT id FROM operations WHERE status = 'unassigned' AND phone = ? AND id <> ?", [$op['phone'], $opId]) as $o) {
+        foreach (q_all("SELECT id FROM operations WHERE status = 'unassigned' AND phone = ? AND id <> ? AND distributor_id = ?", [$op['phone'], $opId, did()]) as $o) {
             db_update('operations', ['agent_id' => $agentId, 'status' => 'ok'], 'id = :id', ['id' => $o['id']]);
             request_link_deposit((int)$o['id']);
             notify_op((int)$o['id'], false);
@@ -259,7 +260,7 @@ function op_set_status(int $opId, string $status, ?string $note = null): void
     } elseif (in_array($status, ['ok', 'unassigned'], true)) {
         $data['note'] = null; // rétablie : l'ancien motif d'annulation n'a plus lieu d'être
     }
-    db_update('operations', $data, 'id = :id', ['id' => $opId]);
+    db_update('operations', $data, 'id = :id AND distributor_id = :d', ['id' => $opId, 'd' => did()]);
     $op = op_find($opId);
     if ($op && $op['sms_id']) {
         q('UPDATE sms_messages SET status = ? WHERE id = ?', [$status, $op['sms_id']]);
@@ -278,12 +279,13 @@ function op_set_status(int $opId, string $status, ?string $note = null): void
 
 function request_find(int $id): ?array
 {
-    return q_one('SELECT r.*, a.name AS agent_name, a.login_phone FROM deposit_requests r JOIN agents a ON a.id = r.agent_id WHERE r.id = ?', [$id]);
+    return q_one('SELECT r.*, a.name AS agent_name, a.login_phone FROM deposit_requests r JOIN agents a ON a.id = r.agent_id WHERE r.id = ? AND r.distributor_id = ?', [$id, did()]);
 }
 
 function request_create(int $agentId, float $amount, string $note): int
 {
     $id = db_insert('deposit_requests', [
+        'distributor_id' => did(),
         'reference' => new_reference('D'),
         'agent_id' => $agentId,
         'amount' => $amount,
@@ -306,16 +308,17 @@ function request_target_phone(array $req): string
 
 function dashboard_stats(): array
 {
+    $d = did();
     $today = today_start_utc();
-    $sum = fn(string $kinds) => (float)q_val("SELECT COALESCE(SUM(amount),0) FROM operations WHERE status = 'ok' AND kind IN ($kinds) AND occurred_at >= ?", [$today]);
+    $sum = fn(string $kinds) => (float)q_val("SELECT COALESCE(SUM(amount),0) FROM operations WHERE distributor_id = ? AND status = 'ok' AND kind IN ($kinds) AND occurred_at >= ?", [$d, $today]);
     return [
-        'total_due' => (float)q_val('SELECT ' . balance_sql() . ' FROM operations o WHERE o.agent_id IS NOT NULL'),
-        'agents_due' => (int)q_val('SELECT COUNT(*) FROM (SELECT o.agent_id FROM operations o WHERE o.agent_id IS NOT NULL GROUP BY o.agent_id HAVING ' . balance_sql() . ' > 0) t'),
+        'total_due' => (float)q_val('SELECT ' . balance_sql() . ' FROM operations o WHERE o.distributor_id = ? AND o.agent_id IS NOT NULL', [$d]),
+        'agents_due' => (int)q_val('SELECT COUNT(*) FROM (SELECT o.agent_id FROM operations o WHERE o.distributor_id = ? AND o.agent_id IS NOT NULL GROUP BY o.agent_id HAVING ' . balance_sql() . ' > 0) t', [$d]),
         'depots_today' => $sum("'depot'"),
         'remb_om_today' => $sum("'remb_om'"),
         'remb_cash_today' => $sum("'remb_cash'"),
-        'pending_requests' => (int)q_val("SELECT COUNT(*) FROM deposit_requests WHERE status IN ('pending','approved')"),
-        'unassigned' => (int)q_val("SELECT COUNT(*) FROM operations WHERE status = 'unassigned'"),
-        'review' => (int)q_val("SELECT COUNT(*) FROM operations WHERE status = 'review'"),
+        'pending_requests' => (int)q_val("SELECT COUNT(*) FROM deposit_requests WHERE distributor_id = ? AND status IN ('pending','approved')", [$d]),
+        'unassigned' => (int)q_val("SELECT COUNT(*) FROM operations WHERE distributor_id = ? AND status = 'unassigned'", [$d]),
+        'review' => (int)q_val("SELECT COUNT(*) FROM operations WHERE distributor_id = ? AND status = 'review'", [$d]),
     ];
 }

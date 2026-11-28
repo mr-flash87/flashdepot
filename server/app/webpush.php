@@ -156,7 +156,7 @@ function push_notify(string $title, string $body, string $path, ?int $agentId = 
     $sent = 0;
     try {
         $subs = $agentId === null
-            ? q_all('SELECT * FROM push_subscriptions WHERE agent_id IS NULL')
+            ? q_all('SELECT * FROM push_subscriptions WHERE agent_id IS NULL AND distributor_id = ?', [did()])
             : q_all('SELECT * FROM push_subscriptions WHERE agent_id = ?', [$agentId]);
         foreach ($subs as $s) {
             $code = webpush_send($s, [
@@ -191,6 +191,7 @@ function push_handle(?int $agentId, ?int $userId): never
         $hash = hash('sha256', $endpoint);
         q('DELETE FROM push_subscriptions WHERE endpoint_hash = ?', [$hash]);
         db_insert('push_subscriptions', [
+            'distributor_id' => did(),
             'user_id' => $userId,
             'agent_id' => $agentId,
             'endpoint' => mb_substr($endpoint, 0, 500),

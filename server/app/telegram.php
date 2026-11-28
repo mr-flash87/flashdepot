@@ -8,14 +8,14 @@ declare(strict_types=1);
 
 function tg_enabled(): bool
 {
-    return trim((string)setting('tg_token')) !== '' && trim((string)setting('tg_chat_id')) !== '';
+    return trim((string)dsetting('tg_token')) !== '' && trim((string)dsetting('tg_chat_id')) !== '';
 }
 
 /** Envoie un message. Retourne null si OK, sinon le message d'erreur. */
 function tg_send(string $text, ?string $chatId = null, ?string $token = null): ?string
 {
-    $token = trim($token ?? (string)setting('tg_token'));
-    $chatId = trim($chatId ?? (string)setting('tg_chat_id'));
+    $token = trim($token ?? (string)dsetting('tg_token'));
+    $chatId = trim($chatId ?? (string)dsetting('tg_chat_id'));
     if ($token === '' || $chatId === '' || !function_exists('curl_init')) {
         return 'Telegram non configuré.';
     }

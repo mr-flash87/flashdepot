@@ -5,9 +5,9 @@ $stats = $stats ?? null;
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $rel = '/' . trim(substr($path, strlen(base_path())), '/');
 $isOn = function (string $prefix) use ($rel): bool {
-    return in_array($prefix, ['/admin', '/agent'], true) ? $rel === $prefix : str_starts_with($rel, $prefix);
+    return in_array($prefix, ['/admin', '/agent', '/superadmin'], true) ? $rel === $prefix : str_starts_with($rel, $prefix);
 };
-$person = $area === 'admin' ? (admin_user()['email'] ?? '') : (($agent ?? null)['name'] ?? '');
+$person = in_array($area, ['admin', 'superadmin'], true) ? (has_did() ? distributor()['name'] : (admin_user()['email'] ?? '')) : (($agent ?? null)['name'] ?? '');
 $initials = mb_strtoupper(implode('', array_map(fn($w) => mb_substr($w, 0, 1), array_slice(preg_split('/[\s@._-]+/u', trim($person)) ?: [''], 0, 2)))) ?: '?';
 
 // Onglets du bas (4 + « Plus ») et entrées du menu « Plus ».
@@ -25,11 +25,20 @@ if ($area === 'admin') {
         ['admin/device', 'phone', 'Téléphone'],
         ['admin/sms', 'sms', 'SMS reçus'],
         ['admin/settings', 'gear', 'Réglages'],
+        ['admin/subscription', 'wallet', 'Abonnement'],
         ['#notif', 'bell', 'Notifications'],
         ['#install', 'download', 'Installer l\'app'],
         ['agent/login', 'users', 'Page agents'],
     ];
     $logout = 'admin/logout';
+} elseif ($area === 'superadmin') {
+    $tabs = [
+        ['/superadmin', 'superadmin', 'users', 'Distributeurs', 0],
+        ['/superadmin/payments', 'superadmin/payments', 'wallet', 'Paiements', (int)q_val("SELECT COUNT(*) FROM subscription_payments WHERE status IN ('unassigned','review')")],
+        ['/superadmin/settings', 'superadmin/settings', 'gear', 'Plateforme', 0],
+    ];
+    $more = [['#install', 'download', 'Installer l\'app']];
+    $logout = 'superadmin/logout';
 } elseif ($area === 'agent') {
     $tabs = [
         ['/agent', 'agent', 'home', 'Accueil', 0],
@@ -91,11 +100,11 @@ $pwa = [
 
 <div class="shell">
 <header class="appbar">
-  <a class="brand" href="<?= h(url($area === 'admin' ? 'admin' : 'agent')) ?>"><span class="mark"><?= icon('logo', 20) ?></span><span><?= h(app_name()) ?></span></a>
+  <a class="brand" href="<?= h(url(in_array($area, ['admin', 'superadmin'], true) ? $area : 'agent')) ?>"><span class="mark"><?= icon('logo', 20) ?></span><span><?= h(app_name()) ?></span></a>
   <?php if ($tabs): ?>
   <div class="appbar-actions">
     <button type="button" class="round" data-theme-toggle aria-label="Changer le thème"><span class="i-sun"><?= icon('sun', 20) ?></span><span class="i-moon"><?= icon('moon', 20) ?></span></button>
-    <button type="button" class="round" data-open="notif" aria-label="Notifications"><?= icon('bell', 20) ?><i class="dot" data-push-dot hidden></i></button>
+    <?php if ($area !== 'superadmin'): ?><button type="button" class="round" data-open="notif" aria-label="Notifications"><?= icon('bell', 20) ?><i class="dot" data-push-dot hidden></i></button><?php endif; ?>
     <button type="button" class="avatar" data-open="more" aria-label="Menu"><?= h($initials) ?></button>
   </div>
   <?php endif; ?>
@@ -105,6 +114,18 @@ $pwa = [
 <?php foreach (flash() as [$type, $msg]): ?>
   <div class="alert <?= h($type) ?>" data-autohide><?= h($msg) ?></div>
 <?php endforeach; ?>
+<?php if ($area === 'admin' && has_did()):
+    $dd = distributor();
+    $left = dist_days_left($dd); ?>
+  <?php if (admin_impersonating()): ?>
+    <div class="alert warn">Vous consultez l'espace de <b><?= h($dd['name']) ?></b> (assistance). <a href="<?= h(url('admin/logout')) ?>">Revenir au super-admin</a></div>
+  <?php endif; ?>
+  <?php if (!dist_active($dd)): ?>
+    <div class="alert err">Abonnement expiré : votre espace est en lecture seule, vos données sont conservées. <a href="<?= h(url('admin/subscription')) ?>">Renouveler</a></div>
+  <?php elseif ($left !== null && $left <= 7): ?>
+    <div class="alert warn"><?= $dd['plan'] === 'essai' ? 'Essai gratuit' : 'Abonnement' ?> : plus que <?= max(0, $left) ?> jour(s). <a href="<?= h(url('admin/subscription')) ?>">Voir comment payer</a></div>
+  <?php endif; ?>
+<?php endif; ?>
 <?php if ($tabs): ?>
   <div class="install-card" data-install-card hidden>
     <span class="mark"><?= icon('logo', 22) ?></span>
