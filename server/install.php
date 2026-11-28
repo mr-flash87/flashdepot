@@ -58,10 +58,10 @@ if (!$done && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $exists = $pdo->prepare('SELECT id FROM users WHERE email = ?');
             $exists->execute([$email]);
             if ($exists->fetch()) {
-                $st = $pdo->prepare('UPDATE users SET password_hash = ? WHERE email = ?');
+                $st = $pdo->prepare("UPDATE users SET password_hash = ?, role = 'superadmin', distributor_id = NULL WHERE email = ?");
                 $st->execute([password_hash($pass, PASSWORD_DEFAULT), $email]);
             } else {
-                $st = $pdo->prepare('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)');
+                $st = $pdo->prepare("INSERT INTO users (email, password_hash, created_at, role) VALUES (?, ?, ?, 'superadmin')");
                 $st->execute([$email, password_hash($pass, PASSWORD_DEFAULT), gmdate('Y-m-d H:i:s')]);
             }
             $GLOBALS['config'] = ['db' => $db];
@@ -84,7 +84,12 @@ if (!$done && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     }
 }
-$guessUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
+$guessDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
+$guessUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+while ($guessDir !== '' && $guessDir !== '.' && !str_starts_with($guessUri . '/', $guessDir . '/')) {
+    $guessDir = rtrim(dirname($guessDir), '/'); // site servi depuis server/ par réécriture
+}
+$guessUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '') . ($guessDir === '.' ? '' : $guessDir);
 ?><!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Installation · FlashDépôt</title><meta name="robots" content="noindex">
@@ -95,11 +100,12 @@ $guessUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https
   <div class="alert ok">Installation terminée ✅</div>
   <div class="card">
     <p><strong>Important :</strong> supprimez maintenant le fichier <code>install.php</code> de votre hébergement.</p>
-    <a class="btn primary big" href="admin/login">Aller à l'espace distributeur</a>
+    <a class="btn primary big" href="admin/login">Se connecter (super-admin)</a>
+    <p class="small">Les distributeurs créent ensuite leur compte sur <b>/inscription</b>.</p>
   </div>
 <?php elseif ($done): ?>
   <div class="alert warn">Déjà installé. Supprimez <code>install.php</code>. Pour réinstaller, supprimez d'abord <code>config.php</code>.</div>
-  <a class="btn" href="admin">Espace distributeur</a>
+  <a class="btn" href="admin/login">Connexion</a>
 <?php else: ?>
   <div class="card">
     <h2>Vérifications</h2>
@@ -117,9 +123,9 @@ $guessUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https
     <label>Nom de la base</label><input type="text" name="db_name" value="<?= e($_POST['db_name'] ?? '') ?>">
     <label>Utilisateur</label><input type="text" name="db_user" value="<?= e($_POST['db_user'] ?? '') ?>">
     <label>Mot de passe</label><input type="password" name="db_pass">
-    <h2 style="margin-top:18px">Site & compte du distributeur</h2>
+    <h2 style="margin-top:18px">Site & compte super-admin (propriétaire de la plateforme)</h2>
     <label>Adresse du site</label><input type="url" name="app_url" value="<?= e($_POST['app_url'] ?? $guessUrl) ?>">
-    <label>Email du distributeur</label><input type="email" name="admin_email" value="<?= e($_POST['admin_email'] ?? '') ?>" required>
+    <label>Votre email</label><input type="email" name="admin_email" value="<?= e($_POST['admin_email'] ?? '') ?>" required>
     <label>Mot de passe (8 caractères min.)</label><input type="password" name="admin_pass" required minlength="8">
     <p></p><button class="btn primary big">Installer</button>
   </form>

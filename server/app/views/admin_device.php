@@ -2,7 +2,7 @@
 $paired = $device && $device['token_hash'];
 $codeValid = $device && $device['pair_code'] && $device['pair_expires_at'] > now();
 ?>
-<div class="page-head"><div><a class="back" href="<?= h(url('admin/settings')) ?>">← Plus</a><h1>Téléphone du distributeur</h1></div></div>
+<div class="page-head"><div><a class="back" href="<?= h(url('admin')) ?>">← Accueil</a><h1>Téléphone du distributeur</h1></div></div>
 
 <section class="card">
   <?php if ($paired): ?>
@@ -19,7 +19,7 @@ $codeValid = $device && $device['pair_code'] && $device['pair_expires_at'] > now
       <div class="alert warn">Le téléphone ne donne plus de nouvelles. Vérifiez qu'il est allumé, connecté à Internet et que l'application FlashDépôt est ouverte. Les SMS reçus pendant la coupure seront envoyés dès le retour du réseau.</div>
     <?php endif; ?>
   <?php else: ?>
-    <p>Aucun téléphone associé. Installez l'application FlashDépôt sur le téléphone qui a la <b>SIM Orange Money du distributeur</b>, puis générez un code.</p>
+    <p>Aucun téléphone associé. Installez l'application FlashDépôt sur le téléphone qui a la <b>SIM Orange Money (et/ou Moov Money) du distributeur</b>, puis générez un code.</p>
   <?php endif; ?>
 
   <?php if ($codeValid): ?>
@@ -36,12 +36,17 @@ $codeValid = $device && $device['pair_code'] && $device['pair_expires_at'] > now
 </section>
 
 <section class="card">
-  <h2>Solde Orange Money</h2>
-  <p class="big-num"><?= $device && $device['last_balance'] !== null ? h(fmt_amount($device['last_balance'])) : '—' ?></p>
-  <p class="small muted">Mis à jour à chaque SMS. Il sert à repérer les faux SMS : le nouveau solde annoncé doit correspondre à l'ancien plus ou moins le montant.
-    Si un SMS a été manqué, corrigez-le ici avec le solde réel (*144# → Mon compte).</p>
+  <h2>Soldes</h2>
+  <?php foreach (dist_operators() as $op): $bal = $device ? device_balance($device, $op) : null; ?>
+    <div class="row-link"><span><?= h(mm_name($op)) ?></span><b class="big-num" style="font-size:22px;margin:0"><?= $bal !== null ? h(fmt_amount($bal)) : '—' ?></b></div>
+  <?php endforeach; ?>
+  <p class="small muted">Mis à jour à chaque SMS. Ils servent à repérer les faux SMS : le nouveau solde annoncé doit correspondre à l'ancien plus ou moins le montant.
+    Si un SMS a été manqué, corrigez ici avec le solde réel.</p>
   <form method="post" action="<?= h(url('admin/device/balance')) ?>" class="row">
     <?= csrf_field() ?>
+    <?php if (count(dist_operators()) > 1): ?>
+      <select name="operator" style="width:auto;margin:0"><?php foreach (dist_operators() as $op): ?><option value="<?= h($op) ?>"><?= h(mm_operators()[$op]['short']) ?></option><?php endforeach; ?></select>
+    <?php endif; ?>
     <input type="text" name="balance" inputmode="numeric" placeholder="Solde réel" required>
     <button class="btn">Corriger</button>
   </form>

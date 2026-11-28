@@ -6,6 +6,7 @@ require APP_DIR . '/ui.php';
 require APP_DIR . '/api.php';
 require APP_DIR . '/admin.php';
 require APP_DIR . '/agent.php';
+require APP_DIR . '/superadmin.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -22,21 +23,29 @@ $parts = array_values(array_filter(explode('/', $path), 'strlen'));
 try {
     switch ($parts[0] ?? '') {
         case '':
-            redirect('agent');
+            view('landing'); // page de présentation
+            break;
         case 'manifest.webmanifest':
-            $area = ($_GET['area'] ?? '') === 'admin' ? 'admin' : 'agent';
+            // Une appli par espace, chacune avec sa propre zone : installer l'une n'empêche pas d'installer l'autre.
+            $area = in_array($_GET['area'] ?? '', ['admin', 'superadmin'], true) ? $_GET['area'] : 'agent';
+            $names = [
+                'admin' => [app_name() . ' – Distributeur', 'Distributeur'],
+                'superadmin' => [app_name() . ' – Super-admin', 'Super-admin'],
+                'agent' => [app_name() . ' – Agent', app_name()],
+            ];
             header('Content-Type: application/manifest+json; charset=utf-8');
             header('Cache-Control: public, max-age=3600');
             echo json_encode([
-                'name' => app_name() . ($area === 'admin' ? ' – Distributeur' : ' – Agent'),
-                'short_name' => app_name(),
+                'name' => $names[$area][0],
+                'short_name' => $names[$area][1],
                 'id' => url($area),
                 'start_url' => url($area),
-                'scope' => url(''),
+                'scope' => url($area),
                 'display' => 'standalone',
+                'description' => 'Dépôts Orange Money entre le distributeur et ses agents.',
                 'orientation' => 'portrait',
-                'background_color' => '#f4f6fb',
-                'theme_color' => '#ff7900',
+                'background_color' => '#f5f6f8',
+                'theme_color' => '#f5f6f8',
                 'lang' => 'fr',
                 'icons' => [
                     ['src' => url('assets/icon-192.png'), 'sizes' => '192x192', 'type' => 'image/png'],
@@ -55,6 +64,12 @@ try {
             break;
         case 'agent':
             agent_route($method, array_slice($parts, 1));
+            break;
+        case 'superadmin':
+            superadmin_route($method, array_slice($parts, 1));
+            break;
+        case 'inscription':
+            register_route($method);
             break;
         default:
             http_response_code(404);

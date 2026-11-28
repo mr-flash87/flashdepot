@@ -20,7 +20,7 @@ $total = array_sum(array_map(fn($r) => max(0, (float)$r['due']), $rows));
 <div class="list">
 <?php foreach ($rows as $a): $due = (float)$a['due']; ?>
   <a class="agent-row<?= (int)$a['active'] === 1 ? '' : ' off' ?>" href="<?= h(url('admin/agents/' . $a['id'])) ?>">
-    <span class="avatar"><?= h(mb_strtoupper(mb_substr($a['name'], 0, 1))) ?></span>
+    <span class="avatar-sm"><?= h(mb_strtoupper(mb_substr($a['name'], 0, 1))) ?></span>
     <span class="agent-main">
       <b><?= h($a['name']) ?></b><?= (int)$a['active'] === 1 ? '' : ' <span class="badge b-cancelled">désactivé</span>' ?>
       <span class="muted small"><?= h(fmt_phone($a['login_phone'])) ?><?= $a['location'] ? ' · ' . h($a['location']) : '' ?> · <?= h(ago($a['last_op_at'])) ?></span>

@@ -1,0 +1,19 @@
+# Le repo est déployé tel quel dans public_html (Git de Hostinger) :
+# le site est dans server/, on y envoie toutes les requêtes.
+Options -Indexes
+DirectoryIndex server/index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Rien d'autre que le site n'est accessible depuis Internet.
+  RewriteRule ^(\.git|\.github|android)(/|$) - [F,L]
+  RewriteRule ^(README\.md|\.gitignore|\.htaccess)$ - [F,L]
+  # Tout le reste est servi par server/ (sans faire apparaître « server » dans l'adresse).
+  RewriteCond %{REQUEST_URI} !^/server/
+  RewriteRule ^(.*)$ server/$1 [L]
+</IfModule>
+
+# Compression : pages, styles et scripts plus légers sur le réseau mobile.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript application/x-javascript application/json application/manifest+json image/svg+xml
+</IfModule>

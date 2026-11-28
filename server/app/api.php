@@ -50,6 +50,8 @@ function api_device(string $method, array $parts): never
     if (!$device) {
         json_error('unauthorized', 'Téléphone non associé ou révoqué.', 401);
     }
+    // Chaque téléphone appartient à un distributeur (ou à la plateforme pour les abonnements).
+    set_did($device['distributor_id'] !== null ? (int)$device['distributor_id'] : null);
     $seen = ['last_seen_at' => now()];
     if (isset($in['battery'])) {
         $seen['battery'] = max(0, min(100, (int)$in['battery']));

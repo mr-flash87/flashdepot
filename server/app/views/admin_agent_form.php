@@ -1,6 +1,10 @@
 <?php /** @var ?array $agent @var array $errors @var array $prefill */
 $v = fn(string $k, $default = '') => $_POST[$k] ?? ($agent[$k] ?? ($prefill[$k] ?? $default));
-$extra = $agent ? array_values(array_diff(agent_phones((int)$agent['id']), [$agent['login_phone']])) : [];
+$mains = $agent ? agent_main_phones((int)$agent['id']) : [];
+$extra = $agent ? array_values(array_diff(agent_phones((int)$agent['id']), array_values($mains))) : [];
+$ops = dist_operators();
+$prefOp = ($prefill['login_phone'] ?? '') !== '' ? (phone_operator($prefill['login_phone']) ?? 'orange') : 'orange';
+$checked = $_POST ? (array)($_POST['ops'] ?? []) : ($agent ? array_keys($mains) : [$prefOp]);
 ?>
 <div class="page-head">
   <div>
@@ -14,13 +18,25 @@ $extra = $agent ? array_values(array_diff(agent_phones((int)$agent['id']), [$age
   <label>Nom de l'agent / du point de vente</label>
   <input type="text" name="name" required value="<?= h($v('name')) ?>" placeholder="Ex. KAFANDO Richard ETS">
 
-  <label>Numéro Orange Money principal</label>
-  <input type="tel" name="login_phone" inputmode="numeric" required value="<?= h($v('login_phone')) ?>" placeholder="64 31 80 90">
-  <p class="small muted">Sert à reconnaître ses dépôts et remboursements dans les SMS, et à se connecter.</p>
+  <label><?= count($ops) > 1 ? 'Opérateurs utilisés par cet agent' : 'Numéro de l\'agent' ?></label>
+  <div class="opgrid">
+  <?php foreach ($ops as $op):
+      $val = $_POST['phone_' . $op] ?? ($mains[$op] ?? ($op === (phone_operator($prefill['login_phone'] ?? '') ?? 'orange') ? ($prefill['login_phone'] ?? '') : '')); ?>
+    <div class="opbox">
+      <?php if (count($ops) > 1): ?>
+        <label class="check"><input type="checkbox" name="ops[]" value="<?= h($op) ?>" <?= in_array($op, $checked, true) ? 'checked' : '' ?> data-op-toggle> <b><?= h(mm_name($op)) ?></b></label>
+      <?php else: ?>
+        <b><?= h(mm_name($op)) ?></b>
+      <?php endif; ?>
+      <input type="tel" name="phone_<?= h($op) ?>" inputmode="numeric" value="<?= h($val) ?>" placeholder="Numéro <?= h(mm_operators()[$op]['short']) ?> de l'agent">
+    </div>
+  <?php endforeach; ?>
+  </div>
+  <p class="small muted">Ces numéros servent à reconnaître ses dépôts et remboursements dans les SMS. L'agent se connecte avec son numéro Orange (ou Moov s'il n'a que Moov), et choisit l'opérateur quand il demande un dépôt.</p>
 
-  <label>Autres numéros Orange Money (facultatif)</label>
+  <label>Autres numéros (facultatif)</label>
   <textarea name="phones" rows="2" placeholder="Un numéro par ligne"><?= h($_POST['phones'] ?? implode("\n", $extra)) ?></textarea>
-  <p class="small muted">Si l'agent rembourse parfois depuis un autre numéro.</p>
+  <p class="small muted">S'il rembourse parfois depuis un autre numéro.</p>
 
   <label><?= $agent ? 'Nouveau code PIN (laisser vide pour ne pas changer)' : 'Code PIN de connexion (4 à 6 chiffres)' ?></label>
   <input type="text" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" <?= $agent ? '' : 'required' ?> value="<?= h($agent ? '' : ($_POST['pin'] ?? (string)random_int(1000, 9999))) ?>" class="mono">

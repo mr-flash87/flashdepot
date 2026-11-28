@@ -1,7 +1,7 @@
 <?php /** @var array $rows @var ?array $test */
 $kinds = ['in' => 'Argent reçu', 'out' => 'Transfert envoyé', 'other' => 'Autre débit'];
 ?>
-<div class="page-head"><div><a class="back" href="<?= h(url('admin/settings')) ?>">← Plus</a><h1>SMS reçus</h1></div></div>
+<div class="page-head"><div><a class="back" href="<?= h(url('admin')) ?>">← Accueil</a><h1>SMS reçus</h1></div></div>
 
 <details class="card" <?= $test !== null ? 'open' : '' ?>>
   <summary><b>Tester la lecture d'un SMS</b></summary>

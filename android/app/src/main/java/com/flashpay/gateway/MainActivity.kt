@@ -257,15 +257,15 @@ private fun HeaderBand(title: String, subtitle: String, trailing: @Composable ()
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Brush.linearGradient(listOf(Brand.Navy, Color(0xFF13306E), Brand.Blue)))
+            .background(Brush.linearGradient(listOf(Brand.Orange2, Brand.Orange, Brand.OrangeDeep)))
             .statusBarsPadding()
             .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 26.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(alpha = 0.14f)),
+                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.Email, null, tint = Color.White, modifier = Modifier.size(24.dp)) }
+            ) { Text("⇅", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -448,7 +448,7 @@ fun HomeScreen(
                                 BigStat("SMS transmis", state.sentToday.toString(), "aujourd'hui", Icons.Filled.Email, Modifier.weight(1f))
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                BigStat("En attente", state.pending.toString(), "d'envoi au site", Icons.Filled.Refresh, Modifier.weight(1f), if (state.pending > 0) Brand.Amber else null)
+                                BigStat("En attente", state.pending.toString(), "d'envoi au site", Icons.Filled.Refresh, Modifier.weight(1f), if (state.pending > 0) Brand.Amber else Brand.Green)
                                 BigStat("Dernier contact", if (state.lastSync > 0) relative(state.lastSync) else "—", "avec le site", Icons.Filled.CheckCircle, Modifier.weight(1f))
                             }
                             if (todo > 0) {
@@ -491,6 +491,13 @@ fun HomeScreen(
             ).forEach { (label, icon, i) ->
                 NavigationBarItem(
                     selected = tab == i, onClick = { tab = i },
+                    colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                        selectedIconColor = Brand.Orange,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                     icon = {
                         if (i == 3 && todo > 0) BadgedBox(badge = { Badge { Text(todo.toString()) } }) { Icon(icon, label) }
                         else Icon(icon, label)
@@ -514,17 +521,24 @@ fun HomeScreen(
     }
 }
 
+/** Logo FlashDépôt : carré orange arrondi avec les flèches dépôt / remboursement. */
+@Composable
+private fun LogoMark(size: Int = 40) {
+    Box(
+        Modifier.size(size.dp).clip(RoundedCornerShape((size * 0.3).dp))
+            .background(Brush.linearGradient(listOf(Brand.Orange2, Brand.Orange))),
+        contentAlignment = Alignment.Center
+    ) { Text("⇅", color = Color.White, fontWeight = FontWeight.Black, fontSize = (size * 0.5).sp) }
+}
+
 /** Barre du haut claire, grand titre (style tableau de bord). */
 @Composable
 private fun TopBar(title: String, subtitle: String, actions: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(Brand.Blue),
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.Email, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
+            LogoMark(40)
             Spacer(Modifier.width(10.dp))
-            Text("FlashDépôt", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+            Text("FlashDépôt", fontWeight = FontWeight.ExtraBold, fontSize = 21.sp, modifier = Modifier.weight(1f))
             actions()
         }
         Spacer(Modifier.height(18.dp))
@@ -555,12 +569,13 @@ private fun BigStat(label: String, value: String, sub: String, icon: ImageVector
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), maxLines = 2)
-                Box(Modifier.size(32.dp).clip(CircleShape).background(Brand.BlueSoft), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = accent ?: Brand.Blue, modifier = Modifier.size(17.dp))
+                val chip = when (accent) { Brand.Green -> Brand.GreenSoft; Brand.Amber -> Brand.AmberSoft; Brand.Red -> Brand.RedSoft; else -> Brand.OrangeSoft }
+                Box(Modifier.size(38.dp).clip(CircleShape).background(chip), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = accent ?: Brand.Orange, modifier = Modifier.size(19.dp))
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, color = accent ?: MaterialTheme.colorScheme.onSurface, maxLines = 1)
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
@@ -616,31 +631,40 @@ private fun StatusCard(state: UiState) {
     val pulse = rememberInfiniteTransition(label = "pulse")
     val a by pulse.animateFloat(0.35f, 1f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "a")
 
-    SectionCard {
+    val gradient = when (health) {
+        Health.OK -> listOf(Brand.Orange2, Brand.Orange, Brand.OrangeDeep)
+        Health.WARN -> listOf(Color(0xFFE09A1B), Color(0xFFC77700))
+        Health.ERROR -> listOf(Color(0xFFE45050), Color(0xFFC62828))
+    }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(gradient)).padding(22.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(56.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-                Icon(
-                    if (health == Health.OK) Icons.Filled.CheckCircle else Icons.Filled.Warning, null,
-                    tint = fg, modifier = Modifier.size(30.dp)
-                )
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(9.dp).alpha(if (health == Health.OK) a else 1f).clip(CircleShape).background(fg))
-                    Spacer(Modifier.width(7.dp))
-                    Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-                Spacer(Modifier.height(3.dp))
-                Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
+            Box(Modifier.size(9.dp).alpha(if (health == Health.OK) a else 1f).clip(CircleShape).background(Color.White))
+            Spacer(Modifier.width(8.dp))
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White.copy(alpha = 0.92f))
         }
-        Spacer(Modifier.height(14.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Spacer(Modifier.height(12.dp))
-        Row {
-            InfoCell("Dernier contact", if (state.lastSync > 0) relative(state.lastSync) else "—", Modifier.weight(1f))
-            InfoCell("Service", if (state.serviceOn) "En marche" else "Arrêté", Modifier.weight(1f))
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (health == Health.OK) "${state.sentToday} SMS" else if (health == Health.ERROR) "À régler" else "Hors ligne",
+            fontWeight = FontWeight.ExtraBold, fontSize = 36.sp, color = Color.White
+        )
+        Text(
+            if (health == Health.OK) "transmis aujourd'hui · ${state.matchedToday} opération(s) reconnue(s)" else detail,
+            fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f), maxLines = 3, overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.16f)).padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Dernier contact", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                Text(if (state.lastSync > 0) relative(state.lastSync) else "—", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Service", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                Text(if (state.serviceOn) "En marche" else "Arrêté", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            }
         }
     }
 }

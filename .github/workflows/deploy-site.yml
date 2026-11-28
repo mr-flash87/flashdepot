@@ -8,12 +8,9 @@ name: Mise en ligne du site (Hostinger)
 #   FTP_DIR      : dossier du site vu depuis le compte FTP, terminé par / (ex. depot/ ou ./)
 # config.php, data/ et install.php ne sont jamais écrasés : les réglages et la base restent intacts.
 
+# Désactivé par défaut : le site est déployé par la fonction Git de Hostinger (repo cloné dans public_html,
+# le .htaccess de la racine sert server/). À lancer à la main seulement si on préfère le FTP.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "server/**"
-      - ".github/workflows/deploy-site.yml"
   workflow_dispatch:
 
 concurrency:

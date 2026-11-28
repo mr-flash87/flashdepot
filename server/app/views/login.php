@@ -4,16 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#ff7900">
+<meta name="theme-color" content="#f5f6f8">
 <title>Connexion · <?= h(app_name()) ?></title>
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="<?= h($isAdmin ? 'Distributeur' : app_name()) ?>">
+<link rel="apple-touch-icon" href="<?= h(url('assets/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= h(url('manifest.webmanifest?area=' . ($isAdmin ? 'admin' : 'agent'))) ?>">
-<link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">
+<script>try{var t=localStorage.getItem('fd-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="<?= h(asset_url('assets/style.css')) ?>">
 </head>
 <body class="login-page">
 <div class="login-box">
   <div class="login-head">
-    <span class="logo big"><?= icon('wallet', 28) ?></span>
+    <span class="mark"><?= icon('logo', 30) ?></span>
     <h1><?= h(app_name()) ?></h1>
     <p><?= $isAdmin ? 'Espace distributeur' : 'Espace agent : demandez vos dépôts et suivez votre compte' ?></p>
   </div>
@@ -26,7 +30,7 @@
       <label>Mot de passe</label>
       <input type="password" name="password" required autocomplete="current-password">
     <?php else: ?>
-      <label>Votre numéro Orange Money</label>
+      <label>Votre numéro (Orange ou Moov Money)</label>
       <input type="tel" name="phone" inputmode="numeric" required placeholder="70 00 00 00" autocomplete="username" value="<?= h($_POST['phone'] ?? '') ?>">
       <label>Code PIN</label>
       <input type="password" name="pin" inputmode="numeric" pattern="[0-9]*" required autocomplete="current-password" class="pin">
@@ -34,13 +38,9 @@
     <?php endif; ?>
     <button class="btn primary big">Se connecter</button>
   </form>
-  <p class="center small">
-    <?php if ($isAdmin): ?>
-      <a href="<?= h(url('agent/login')) ?>">Espace agent</a>
-    <?php else: ?>
-      <a href="<?= h(url('admin/login')) ?>" class="muted">Espace distributeur</a>
-    <?php endif; ?>
-  </p>
+  <?php if ($isAdmin && setting('registrations_open') === '1'): ?>
+    <p class="center small">Pas encore de compte ? <a href="<?= h(url('inscription')) ?>"><b>Créer un compte distributeur</b></a></p>
+  <?php endif; ?>
 </div>
 </body>
 </html>

@@ -15,8 +15,13 @@ function due_text(float $due): string
 }
 
 /** Ligne d'opération (journal, relevé, tableau de bord). */
-function op_row(array $o, bool $showAgent = true, bool $showBalance = false): string
+function op_row(array $o, bool $showAgent = true, bool $showBalance = false, bool $forAgent = false): string
 {
+    $mm = mm_name($o['operator'] ?? 'orange');
+    $label = $forAgent ? (['depot' => 'Dépôt reçu', 'remb_om' => 'Remboursement ' . $mm, 'remb_cash' => 'Remboursement cash'][$o['kind']] ?? op_label($o['kind'])) : op_label($o['kind']);
+    if (!$forAgent && $o['kind'] === 'remb_om') {
+        $label = 'Remboursement ' . $mm;
+    }
     $sign = op_sign($o['kind']);
     $counted = $o['status'] === 'ok';
     $ic = $o['kind'] === 'depot' || $o['kind'] === 'ajust_plus' ? 'up' : ($o['kind'] === 'remb_cash' ? 'cash' : 'down');
@@ -30,7 +35,7 @@ function op_row(array $o, bool $showAgent = true, bool $showBalance = false): st
     $meta = [];
     $meta[] = h(fmt_dt($o['occurred_at']));
     if ($o['source'] === 'sms') {
-        $meta[] = 'SMS';
+        $meta[] = 'SMS ' . (mm_operators()[$o['operator'] ?? 'orange']['short'] ?? '');
     } elseif ($o['source'] === 'manual') {
         $meta[] = 'saisie manuelle';
     }
@@ -42,7 +47,7 @@ function op_row(array $o, bool $showAgent = true, bool $showBalance = false): st
     }
     $html = '<div class="op' . ($counted ? '' : ' op-off') . '">'
         . '<div class="op-ic ' . $tone . '">' . icon($ic, 18) . '</div>'
-        . '<div class="op-main"><div class="op-title">' . h(op_label($o['kind']))
+        . '<div class="op-main"><div class="op-title">' . h($label)
         . ($o['status'] !== 'ok' ? ' ' . badge($o['status'], op_status_label($o['status'])) : '') . '</div>'
         . ($who !== '' ? '<div class="op-who">' . $who . '</div>' : '')
         . '<div class="op-meta">' . implode(' · ', $meta) . '</div></div>'
@@ -63,6 +68,7 @@ function request_card(array $r): string
         . '<div class="muted small">' . h(fmt_dt($r['created_at'])) . ' · ' . h($r['reference']) . '</div></div>'
         . '<div class="req-amt">' . h(fmt_amount($r['amount'])) . '</div></div>'
         . '<div class="req-info">' . badge($r['status'], req_status_label($r['status']))
+        . (!empty($r['operator']) ? ' ' . badge($r['operator'] === 'moov' ? 'approved' : 'pending', mm_operators()[$r['operator']]['short'] ?? $r['operator']) : '')
         . ' <span class="small">' . ($due >= 0 ? 'Dette actuelle : <b class="neg">' . h(fmt_amount($due)) : 'Avance de l\'agent : <b class="pos">' . h(fmt_amount(-$due))) . '</b></span></div>';
     if ($r['note']) {
         $h .= '<div class="req-note">« ' . h($r['note']) . ' »</div>';
@@ -72,7 +78,7 @@ function request_card(array $r): string
     }
     if (in_array($r['status'], ['pending', 'approved'], true)) {
         $h .= '<div class="req-send">Envoyer au <b class="mono">' . h(fmt_phone($target)) . '</b>';
-        $code = deposit_ussd($target, (float)$r['amount']);
+        $code = deposit_ussd($target, (float)$r['amount'], $r['operator'] ?? null);
         if ($code !== '') {
             $h .= ' · <a class="mono" href="' . h(ussd_link($code)) . '">' . h($code) . '</a>';
         }
@@ -103,4 +109,36 @@ function action_button(string $action, string $label, string $class = 'btn', str
         $h .= '<input type="hidden" name="' . h($k) . '" value="' . h($v) . '">';
     }
     return $h . '<button class="' . h($class) . '">' . $label . '</button></form>';
+}
+
+/** Suivi d'une demande en 3 étapes (espace agent). */
+function request_tracker(array $r): string
+{
+    $steps = ['Envoyée', 'Validée', 'Dépôt reçu'];
+    $at = ['pending' => 0, 'approved' => 1, 'sent' => 2][$r['status']] ?? -1;
+    if ($at < 0) {
+        return '<div class="trk trk-off">' . badge($r['status'], req_status_label($r['status']))
+            . ($r['reject_reason'] ? ' <span class="small muted">' . h($r['reject_reason']) . '</span>' : '') . '</div>';
+    }
+    $h = '<div class="trk">';
+    foreach ($steps as $i => $label) {
+        $cls = $i < $at ? 'done' : ($i === $at ? ($at === 2 ? 'done' : 'now') : '');
+        $h .= '<div class="trk-step ' . $cls . '"><span class="trk-dot">' . ($i < $at || ($i === $at && $at === 2) ? icon('check', 12) : '') . '</span><span>' . $label . '</span></div>';
+    }
+    return $h . '</div>';
+}
+
+/** Opérations groupées par jour : « Aujourd'hui », « Hier », puis la date. */
+function ops_by_day(array $ops): array
+{
+    $tz = local_tz();
+    $today = (new DateTime('now', $tz))->format('Y-m-d');
+    $yest = (new DateTime('yesterday', $tz))->format('Y-m-d');
+    $out = [];
+    foreach ($ops as $o) {
+        $d = (new DateTime($o['occurred_at'], new DateTimeZone('UTC')))->setTimezone($tz)->format('Y-m-d');
+        $label = $d === $today ? 'Aujourd\'hui' : ($d === $yest ? 'Hier' : fmt_dt($o['occurred_at'], 'd/m/Y'));
+        $out[$label][] = $o;
+    }
+    return $out;
 }
