@@ -23,17 +23,24 @@ $parts = array_values(array_filter(explode('/', $path), 'strlen'));
 try {
     switch ($parts[0] ?? '') {
         case '':
-            redirect('agent');
+            view('landing'); // page de présentation
+            break;
         case 'manifest.webmanifest':
-            $area = ($_GET['area'] ?? '') === 'admin' ? 'admin' : 'agent';
+            // Une appli par espace, chacune avec sa propre zone : installer l'une n'empêche pas d'installer l'autre.
+            $area = in_array($_GET['area'] ?? '', ['admin', 'superadmin'], true) ? $_GET['area'] : 'agent';
+            $names = [
+                'admin' => [app_name() . ' – Distributeur', 'Distributeur'],
+                'superadmin' => [app_name() . ' – Super-admin', 'Super-admin'],
+                'agent' => [app_name() . ' – Agent', app_name()],
+            ];
             header('Content-Type: application/manifest+json; charset=utf-8');
             header('Cache-Control: public, max-age=3600');
             echo json_encode([
-                'name' => app_name() . ($area === 'admin' ? ' – Distributeur' : ' – Agent'),
-                'short_name' => app_name(),
+                'name' => $names[$area][0],
+                'short_name' => $names[$area][1],
                 'id' => url($area),
                 'start_url' => url($area),
-                'scope' => url(''),
+                'scope' => url($area),
                 'display' => 'standalone',
                 'description' => 'Dépôts Orange Money entre le distributeur et ses agents.',
                 'orientation' => 'portrait',

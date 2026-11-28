@@ -7,6 +7,9 @@
 <meta name="theme-color" content="#f5f6f8">
 <title>Connexion · <?= h(app_name()) ?></title>
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="<?= h($isAdmin ? 'Distributeur' : app_name()) ?>">
+<link rel="apple-touch-icon" href="<?= h(url('assets/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= h(url('manifest.webmanifest?area=' . ($isAdmin ? 'admin' : 'agent'))) ?>">
 <script>try{var t=localStorage.getItem('fd-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">

@@ -67,12 +67,12 @@ $pwa = [
 <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="<?= h(app_name()) ?>">
+<meta name="apple-mobile-web-app-title" content="<?= h(['admin' => 'Distributeur', 'superadmin' => 'Super-admin'][$area] ?? app_name()) ?>">
 <title><?= h($title ?? '') ?> · <?= h(app_name()) ?></title>
 <script>try{var t=localStorage.getItem('fd-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="icon" href="<?= h(url('assets/favicon-32.png')) ?>">
 <link rel="apple-touch-icon" href="<?= h(url('assets/apple-touch-icon.png')) ?>">
-<link rel="manifest" href="<?= h(url('manifest.webmanifest?area=' . ($area === 'admin' ? 'admin' : 'agent'))) ?>">
+<link rel="manifest" href="<?= h(url('manifest.webmanifest?area=' . (in_array($area, ['admin', 'superadmin'], true) ? $area : 'agent'))) ?>">
 <link rel="stylesheet" href="<?= h(url('assets/style.css?v=' . APP_VERSION)) ?>">
 <script>window.FD = <?= json_encode($pwa, JSON_UNESCAPED_SLASHES) ?>;</script>
 </head>
