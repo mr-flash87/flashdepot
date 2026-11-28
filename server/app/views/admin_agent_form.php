@@ -32,6 +32,9 @@ $checked = $_POST ? (array)($_POST['ops'] ?? []) : ($agent ? array_keys($mains) 
     </div>
   <?php endforeach; ?>
   </div>
+  <?php if (!in_array('moov', $ops, true)): ?>
+    <div class="alert info small" style="margin-top:10px">Pour ajouter un numéro Moov Money, activez d'abord Moov Money dans <a href="<?= h(url('admin/settings')) ?>"><b>Réglages</b></a> (« Opérateurs que vous utilisez »).</div>
+  <?php endif; ?>
   <p class="small muted">Ces numéros servent à reconnaître ses dépôts et remboursements dans les SMS. L'agent se connecte avec son numéro Orange (ou Moov s'il n'a que Moov), et choisit l'opérateur quand il demande un dépôt.</p>
 
   <label>Autres numéros (facultatif)</label>
